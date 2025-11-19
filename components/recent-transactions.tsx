@@ -32,8 +32,10 @@ const categoryLabels: Record<string, string> = {
 
 export function RecentTransactions() {
   const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
+    setIsMounted(true);
     const allExpenses = ExpenseStorage.getAll();
     // Sort by date descending and take first 6
     allExpenses.sort(

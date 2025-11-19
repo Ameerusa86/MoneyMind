@@ -46,8 +46,10 @@ export function ExpenseBreakdown() {
   const [data, setData] = useState<
     Array<{ name: string; value: number; color: string }>
   >([]);
+  const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
+    setIsMounted(true);
     const now = new Date();
     const breakdown = ExpenseStorage.getCategoryBreakdown(
       now.getFullYear(),
