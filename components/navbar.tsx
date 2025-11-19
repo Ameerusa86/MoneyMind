@@ -13,6 +13,7 @@ import {
   Menu,
   User,
   LogIn,
+  CalendarDays,
 } from "lucide-react";
 import { useState } from "react";
 import {
@@ -30,6 +31,7 @@ const navItems = [
   { name: "Expenses", href: "/expenses", icon: TrendingDown },
   { name: "Accounts", href: "/accounts", icon: Wallet },
   { name: "Bills", href: "/bills", icon: Landmark },
+  { name: "Planner", href: "/payment-planner", icon: CalendarDays },
   { name: "Credit Cards", href: "/credit-cards", icon: CreditCard },
   { name: "Loans", href: "/loans", icon: Landmark },
 ];
