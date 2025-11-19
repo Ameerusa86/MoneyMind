@@ -43,20 +43,26 @@ const categoryLabels: Record<string, string> = {
 };
 
 export function ExpenseBreakdown() {
-  const [data, setData] = useState<Array<{ name: string; value: number; color: string }>>([]);
+  const [data, setData] = useState<
+    Array<{ name: string; value: number; color: string }>
+  >([]);
 
   useEffect(() => {
     const now = new Date();
-    const breakdown = ExpenseStorage.getCategoryBreakdown(now.getFullYear(), now.getMonth());
-    
+    const breakdown = ExpenseStorage.getCategoryBreakdown(
+      now.getFullYear(),
+      now.getMonth()
+    );
+
     const chartData = Object.entries(breakdown)
       .map(([category, value]) => ({
         name: categoryLabels[category] || category,
         value,
-        color: categoryColors[categoryLabels[category] || category] || "#6b7280",
+        color:
+          categoryColors[categoryLabels[category] || category] || "#6b7280",
       }))
       .sort((a, b) => b.value - a.value);
-    
+
     setData(chartData);
   }, []);
 

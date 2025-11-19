@@ -36,7 +36,9 @@ export function RecentTransactions() {
   useEffect(() => {
     const allExpenses = ExpenseStorage.getAll();
     // Sort by date descending and take first 6
-    allExpenses.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    allExpenses.sort(
+      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+    );
     setExpenses(allExpenses.slice(0, 6));
   }, []);
 

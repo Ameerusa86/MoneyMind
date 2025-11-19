@@ -37,6 +37,7 @@ import {
   Heart,
   Film,
   Trash2,
+  Pencil,
 } from "lucide-react";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { ExpenseStorage, AccountStorage } from "@/lib/storage";
@@ -75,6 +76,7 @@ const categoryLabels: Record<ExpenseCategory, string> = {
 export default function ExpensesPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     description: "",
     amount: "",
@@ -110,13 +112,25 @@ export default function ExpensesPage() {
       return;
     }
 
-    ExpenseStorage.add({
-      date: formData.date,
-      amount: parseFloat(formData.amount),
-      category: formData.category as ExpenseCategory,
-      description: formData.description,
-      accountId: formData.accountId || undefined,
-    });
+    if (editingId) {
+      // Update existing expense
+      ExpenseStorage.update(editingId, {
+        date: formData.date,
+        amount: parseFloat(formData.amount),
+        category: formData.category as ExpenseCategory,
+        description: formData.description,
+        accountId: formData.accountId || undefined,
+      });
+    } else {
+      // Add new expense
+      ExpenseStorage.add({
+        date: formData.date,
+        amount: parseFloat(formData.amount),
+        category: formData.category as ExpenseCategory,
+        description: formData.description,
+        accountId: formData.accountId || undefined,
+      });
+    }
 
     // Reset form and reload
     setFormData({
@@ -126,8 +140,21 @@ export default function ExpensesPage() {
       date: new Date().toISOString().split("T")[0],
       accountId: "",
     });
+    setEditingId(null);
     setIsDialogOpen(false);
     loadExpenses();
+  };
+
+  const handleEdit = (expense: Expense) => {
+    setEditingId(expense.id);
+    setFormData({
+      description: expense.description || "",
+      amount: expense.amount.toString(),
+      category: expense.category,
+      date: expense.date,
+      accountId: expense.accountId || "",
+    });
+    setIsDialogOpen(true);
   };
 
   const handleDelete = (id: string) => {
@@ -165,7 +192,22 @@ export default function ExpensesPage() {
             Track and categorize your expenses
           </p>
         </div>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <Dialog
+          open={isDialogOpen}
+          onOpenChange={(open) => {
+            setIsDialogOpen(open);
+            if (!open) {
+              setEditingId(null);
+              setFormData({
+                description: "",
+                amount: "",
+                category: "",
+                date: new Date().toISOString().split("T")[0],
+                accountId: "",
+              });
+            }
+          }}
+        >
           <DialogTrigger asChild>
             <Button>
               <Plus className="mr-2 h-4 w-4" />
@@ -174,7 +216,9 @@ export default function ExpensesPage() {
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Add New Expense</DialogTitle>
+              <DialogTitle>
+                {editingId ? "Edit Expense" : "Add New Expense"}
+              </DialogTitle>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4 py-4">
               <div className="space-y-2">
@@ -205,14 +249,13 @@ export default function ExpensesPage() {
               <div className="space-y-2">
                 <label className="text-sm font-medium">Category *</label>
                 <Select
-                  value={formData.category}
+                  value={formData.category || undefined}
                   onValueChange={(value) =>
                     setFormData({
                       ...formData,
                       category: value as ExpenseCategory,
                     })
                   }
-                  required
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select category" />
@@ -251,16 +294,19 @@ export default function ExpensesPage() {
                   Account (Optional)
                 </label>
                 <Select
-                  value={formData.accountId}
+                  value={formData.accountId || undefined}
                   onValueChange={(value) =>
-                    setFormData({ ...formData, accountId: value })
+                    setFormData({
+                      ...formData,
+                      accountId: value === "none" ? "" : value,
+                    })
                   }
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select account" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">None</SelectItem>
+                    <SelectItem value="none">None</SelectItem>
                     {accounts.map((account) => (
                       <SelectItem key={account.id} value={account.id}>
                         {account.name}
@@ -270,7 +316,7 @@ export default function ExpensesPage() {
                 </Select>
               </div>
               <Button type="submit" className="w-full">
-                Add Expense
+                {editingId ? "Update Expense" : "Add Expense"}
               </Button>
             </form>
           </DialogContent>
@@ -283,10 +329,10 @@ export default function ExpensesPage() {
             <CardTitle className="text-sm font-medium">
               Total Expenses
             </CardTitle>
-            <TrendingDown className="h-4 w-4 text-red-600" />
+            <TrendingDown className="h-4 w-4 text-rose-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-red-600">
+            <div className="text-2xl font-bold text-rose-500">
               {formatCurrency(totalExpenses)}
             </div>
             <p className="text-xs text-muted-foreground">This month</p>
@@ -360,17 +406,26 @@ export default function ExpensesPage() {
                       <TableCell className="text-sm text-muted-foreground">
                         {account ? account.name : "-"}
                       </TableCell>
-                      <TableCell className="text-right font-semibold text-red-600">
+                      <TableCell className="text-right font-semibold text-rose-500">
                         {formatCurrency(expense.amount)}
                       </TableCell>
                       <TableCell className="text-right">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleDelete(expense.id)}
-                        >
-                          <Trash2 className="h-4 w-4 text-red-600" />
-                        </Button>
+                        <div className="flex justify-end gap-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleEdit(expense)}
+                          >
+                            <Pencil className="h-4 w-4 text-blue-500" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDelete(expense.id)}
+                          >
+                            <Trash2 className="h-4 w-4 text-rose-500" />
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   );
