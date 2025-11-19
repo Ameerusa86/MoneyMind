@@ -1,4 +1,4 @@
-# Personal Finance Tracker
+# WalletWave
 
 A comprehensive Next.js application for tracking personal finances including income, expenses, credit cards, loans, and payments. Built with a feature-branch workflow to systematically implement each capability.
 
@@ -99,7 +99,7 @@ npm run dev
 ## Project Structure
 
 ```plaintext
-finance-tracker/
+wallet-wave/
 ├── app/
 │   ├── page.tsx              # Dashboard page
 │   ├── income/

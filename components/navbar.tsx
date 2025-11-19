@@ -15,6 +15,7 @@ import {
   LogIn,
   CalendarDays,
   ChevronDown,
+  Waves,
 } from "lucide-react";
 import { useState } from "react";
 import {
@@ -34,17 +35,17 @@ import {
 
 const navItems = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard },
-  { name: "Income", href: "/income", icon: TrendingUp },
   { name: "Expenses", href: "/expenses", icon: TrendingDown },
   { name: "Calendar", href: "/calendar", icon: CalendarDays },
 ];
 
 const financeItems = [
+  { name: "Income", href: "/income", icon: TrendingUp },
   { name: "Accounts", href: "/accounts", icon: Wallet },
-  { name: "Bills", href: "/bills", icon: Landmark },
-  { name: "Planner", href: "/payment-planner", icon: CalendarDays },
   { name: "Credit Cards", href: "/credit-cards", icon: CreditCard },
   { name: "Loans", href: "/loans", icon: Landmark },
+  { name: "Bills", href: "/bills", icon: Landmark },
+  { name: "Payment Planner", href: "/payment-planner", icon: CalendarDays },
 ];
 
 export function Navbar() {
@@ -58,15 +59,18 @@ export function Navbar() {
       <div className="container mx-auto px-4">
         <div className="flex h-16 items-center justify-between">
           {/* Logo */}
-          <div className="flex items-center gap-2">
-            <Wallet className="h-6 w-6 text-purple-400" />
-            <span className="text-xl font-bold text-gray-100">
-              FinanceTracker
+          <Link
+            href="/"
+            className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+          >
+            <Waves className="h-7 w-7 text-blue-400" />
+            <span className="text-xl font-bold bg-linear-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
+              WalletWave
             </span>
-          </div>
+          </Link>
 
           {/* Desktop Navigation */}
-          <div className="hidden md:flex items-center gap-1">
+          <div className="hidden md:flex items-center gap-2">
             {navItems.map((item) => {
               const Icon = item.icon;
               const isActive = pathname === item.href;
@@ -127,20 +131,20 @@ export function Navbar() {
               </DropdownMenuContent>
             </DropdownMenu>
 
-            <div className="flex items-center gap-2 ml-2 pl-2 border-l border-gray-700">
+            <div className="flex items-center gap-2 ml-4 pl-4 border-l border-gray-700">
               <Link
                 href="/login"
-                className="flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors text-gray-300 hover:bg-gray-800 hover:text-white"
+                className="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors text-gray-300 hover:bg-gray-800 hover:text-white"
               >
                 <LogIn className="h-4 w-4" />
                 Login
               </Link>
               <Link
                 href="/register"
-                className="flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors bg-purple-600 text-white hover:bg-purple-500"
+                className="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors bg-linear-to-r from-blue-600 to-purple-600 text-white hover:from-blue-500 hover:to-purple-500"
               >
                 <User className="h-4 w-4" />
-                Register
+                Sign Up
               </Link>
             </div>
           </div>
@@ -163,8 +167,8 @@ export function Navbar() {
               >
                 <SheetHeader>
                   <SheetTitle className="flex items-center gap-2 text-gray-100">
-                    <Wallet className="h-5 w-5 text-purple-400" />
-                    Menu
+                    <Waves className="h-5 w-5 text-blue-400" />
+                    WalletWave
                   </SheetTitle>
                 </SheetHeader>
                 <div className="flex flex-col gap-2 mt-8">

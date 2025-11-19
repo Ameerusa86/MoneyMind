@@ -1,4 +1,4 @@
-// Core domain types for the finance tracker
+// Core domain types for WalletWave
 
 export type PayFrequency = "weekly" | "bi-weekly" | "semi-monthly" | "monthly";
 

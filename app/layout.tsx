@@ -9,7 +9,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Finance Tracker - Manage Your Personal Finances",
+  title: "WalletWave - Manage Your Personal Finances",
   description:
     "Track your income, expenses, credit cards, loans, and payments in one place",
 };

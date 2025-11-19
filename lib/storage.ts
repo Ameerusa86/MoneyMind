@@ -2,7 +2,7 @@
 // Uses localStorage initially; can be swapped for backend later
 
 const STORAGE_VERSION = "1.0.0";
-const VERSION_KEY = "finance_tracker_version";
+const VERSION_KEY = "wallet_wave_version";
 
 export class Storage {
   private static isClient = typeof window !== "undefined";
