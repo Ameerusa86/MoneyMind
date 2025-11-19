@@ -1,10 +1,22 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Storage, StorageKeys } from "@/lib/storage";
 import { PaySchedule, PayFrequency } from "@/lib/types";
 
@@ -31,13 +43,16 @@ export default function IncomePage() {
     Storage.checkVersion();
   }, []);
 
-  const calculateUpcomingPayDates = (startDate: string, freq: PayFrequency): void => {
+  const calculateUpcomingPayDates = (
+    startDate: string,
+    freq: PayFrequency
+  ): void => {
     const dates: string[] = [];
     const start = new Date(startDate);
-    
+
     for (let i = 0; i < 3; i++) {
       const date = new Date(start);
-      
+
       switch (freq) {
         case "weekly":
           date.setDate(date.getDate() + i * 7);
@@ -53,15 +68,17 @@ export default function IncomePage() {
           date.setMonth(date.getMonth() + i);
           break;
       }
-      
-      dates.push(date.toLocaleDateString("en-US", { 
-        weekday: "short", 
-        year: "numeric", 
-        month: "short", 
-        day: "numeric" 
-      }));
+
+      dates.push(
+        date.toLocaleDateString("en-US", {
+          weekday: "short",
+          year: "numeric",
+          month: "short",
+          day: "numeric",
+        })
+      );
     }
-    
+
     setUpcomingPayDates(dates);
   };
 
@@ -109,14 +126,21 @@ export default function IncomePage() {
           <CardContent className="space-y-4">
             <div className="space-y-2">
               <label className="text-sm font-medium">Pay Frequency</label>
-              <Select value={frequency} onValueChange={(val) => setFrequency(val as PayFrequency)}>
+              <Select
+                value={frequency}
+                onValueChange={(val) => setFrequency(val as PayFrequency)}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Select frequency" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="weekly">Weekly</SelectItem>
-                  <SelectItem value="bi-weekly">Bi-Weekly (Every 2 weeks)</SelectItem>
-                  <SelectItem value="semi-monthly">Semi-Monthly (Twice per month)</SelectItem>
+                  <SelectItem value="bi-weekly">
+                    Bi-Weekly (Every 2 weeks)
+                  </SelectItem>
+                  <SelectItem value="semi-monthly">
+                    Semi-Monthly (Twice per month)
+                  </SelectItem>
                   <SelectItem value="monthly">Monthly</SelectItem>
                 </SelectContent>
               </Select>
@@ -133,7 +157,9 @@ export default function IncomePage() {
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium">Typical Net Amount ($)</label>
+              <label className="text-sm font-medium">
+                Typical Net Amount ($)
+              </label>
               <Input
                 type="number"
                 step="0.01"
@@ -159,7 +185,10 @@ export default function IncomePage() {
             <CardContent>
               <ul className="space-y-2">
                 {upcomingPayDates.map((date, index) => (
-                  <li key={index} className="flex items-center justify-between py-2 border-b last:border-0">
+                  <li
+                    key={index}
+                    className="flex items-center justify-between py-2 border-b last:border-0"
+                  >
                     <span className="font-medium">Paycheck #{index + 1}</span>
                     <span className="text-muted-foreground">{date}</span>
                   </li>
@@ -170,7 +199,10 @@ export default function IncomePage() {
                   <div className="flex justify-between items-center">
                     <span className="font-semibold">Expected Amount:</span>
                     <span className="text-lg font-bold text-green-600">
-                      ${schedule.typicalAmount.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                      $
+                      {schedule.typicalAmount.toLocaleString("en-US", {
+                        minimumFractionDigits: 2,
+                      })}
                     </span>
                   </div>
                 </div>

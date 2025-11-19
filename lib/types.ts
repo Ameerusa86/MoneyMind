@@ -36,7 +36,12 @@ export interface Account {
   updatedAt: string;
 }
 
-export type BillRecurrence = "weekly" | "bi-weekly" | "monthly" | "quarterly" | "yearly";
+export type BillRecurrence =
+  | "weekly"
+  | "bi-weekly"
+  | "monthly"
+  | "quarterly"
+  | "yearly";
 
 export interface Bill {
   id: string;
