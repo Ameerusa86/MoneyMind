@@ -1,6 +1,23 @@
 # Personal Finance Tracker
 
-A comprehensive Next.js application for tracking personal finances including income, expenses, credit cards, loans, and payments.
+A comprehensive Next.js application for tracking personal finances including income, expenses, credit cards, loans, and payments. Built with a feature-branch workflow to systematically implement each capability.
+
+## 📖 Documentation
+
+- **[Feature Roadmap](./docs/feature-plan.md)** - Complete list of planned features with tickets, tasks, and acceptance criteria
+- **[Branching Workflow](./docs/branching.md)** - Git workflow, branch naming conventions, and PR guidelines
+- **[Pull Request Template](./.github/pull_request_template.md)** - Standard template for all PRs
+
+## Development Approach
+
+This project follows a structured feature-branch workflow:
+
+1. Each feature gets its own branch (e.g., `feature/income-schedule`)
+2. Features are built incrementally with clear acceptance criteria
+3. Pull requests are opened after local testing
+4. Code is reviewed and merged to `master` after approval
+
+See [docs/feature-plan.md](./docs/feature-plan.md) for the complete roadmap and [docs/branching.md](./docs/branching.md) for workflow details.
 
 ## Features
 
@@ -81,12 +98,12 @@ npm run dev
 
 ## Project Structure
 
-```
+```plaintext
 finance-tracker/
 ├── app/
 │   ├── page.tsx              # Dashboard page
 │   ├── income/
-│   │   └── page.tsx          # Income tracking page
+│   │   └── page.tsx          # Income schedule & tracking
 │   ├── expenses/
 │   │   └── page.tsx          # Expenses page
 │   ├── credit-cards/
@@ -102,18 +119,32 @@ finance-tracker/
 │   ├── monthly-chart.tsx
 │   └── expense-breakdown.tsx
 ├── lib/
+│   ├── types.ts              # TypeScript type definitions
+│   ├── storage.ts            # Client-side storage abstraction
 │   └── utils.ts              # Utility functions
+├── docs/
+│   ├── feature-plan.md       # Feature roadmap and tickets
+│   └── branching.md          # Git workflow documentation
+├── .github/
+│   └── pull_request_template.md
 └── package.json
 ```
 
 ## Usage
 
+### Setting Up Income Schedule
+
+1. Navigate to **Income** page
+2. Configure your pay frequency (weekly, bi-weekly, etc.)
+3. Set your next pay date and typical net amount
+4. Save to see upcoming pay dates and track your income schedule
+
 ### Adding Transactions
 
 1. Navigate to the relevant page (Income, Expenses, Credit Cards, or Loans)
-2. Click the "Add" button in the top right
+2. Click the "Add" button
 3. Fill in the transaction details
-4. Submit to add to your records
+4. Submit to persist to local storage
 
 ### Viewing Analytics
 
@@ -121,9 +152,9 @@ finance-tracker/
 - Use the tabs to switch between different chart views
 - Check individual pages for category-specific insights
 
-## Current Data
+## Data Persistence
 
-The application currently uses mock data for demonstration purposes. All displayed transactions, credit cards, and loans are example data to showcase the UI and functionality.
+The application uses **localStorage** for client-side persistence. All data (pay schedules, accounts, bills, expenses) is stored locally in your browser. Future versions will add backend integration for cloud sync.
 
 ## Future Enhancements
 

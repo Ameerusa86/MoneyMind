@@ -1,217 +1,184 @@
 "use client";
 
-import { useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useState, useEffect } from "react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Plus, TrendingUp } from "lucide-react";
-import { formatCurrency, formatDate } from "@/lib/utils";
-
-const incomeTransactions = [
-  {
-    id: 1,
-    date: new Date("2024-11-15"),
-    source: "Monthly Salary",
-    amount: 5000,
-    category: "Salary",
-    recurring: true,
-  },
-  {
-    id: 2,
-    date: new Date("2024-11-12"),
-    source: "Freelance Project - Website Design",
-    amount: 800,
-    category: "Freelance",
-    recurring: false,
-  },
-  {
-    id: 3,
-    date: new Date("2024-11-08"),
-    source: "Stock Dividends",
-    amount: 150,
-    category: "Investment",
-    recurring: false,
-  },
-  {
-    id: 4,
-    date: new Date("2024-11-05"),
-    source: "Side Hustle - Consulting",
-    amount: 450,
-    category: "Consulting",
-    recurring: false,
-  },
-  {
-    id: 5,
-    date: new Date("2024-11-01"),
-    source: "Rental Income",
-    amount: 1200,
-    category: "Rental",
-    recurring: true,
-  },
-  {
-    id: 6,
-    date: new Date("2024-10-28"),
-    source: "Bonus",
-    amount: 900,
-    category: "Salary",
-    recurring: false,
-  },
-];
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Storage, StorageKeys } from "@/lib/storage";
+import { PaySchedule, PayFrequency } from "@/lib/types";
 
 export default function IncomePage() {
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const totalIncome = incomeTransactions.reduce((sum, t) => sum + t.amount, 0);
-  const monthlyRecurring = incomeTransactions
-    .filter((t) => t.recurring)
-    .reduce((sum, t) => sum + t.amount, 0);
+  const [frequency, setFrequency] = useState<PayFrequency>("bi-weekly");
+  const [nextPayDate, setNextPayDate] = useState("");
+  const [amount, setAmount] = useState("");
+  const [schedule, setSchedule] = useState<PaySchedule | null>(null);
+  const [upcomingPayDates, setUpcomingPayDates] = useState<string[]>([]);
+  const [isSaved, setIsSaved] = useState(false);
+
+  useEffect(() => {
+    // Load existing schedule
+    const saved = Storage.get<PaySchedule>(StorageKeys.PAY_SCHEDULE);
+    if (saved) {
+      setSchedule(saved);
+      setFrequency(saved.frequency);
+      setNextPayDate(saved.nextPayDate.split("T")[0]);
+      setAmount(saved.typicalAmount.toString());
+      calculateUpcomingPayDates(saved.nextPayDate, saved.frequency);
+    }
+
+    // Check storage version
+    Storage.checkVersion();
+  }, []);
+
+  const calculateUpcomingPayDates = (startDate: string, freq: PayFrequency): void => {
+    const dates: string[] = [];
+    const start = new Date(startDate);
+    
+    for (let i = 0; i < 3; i++) {
+      const date = new Date(start);
+      
+      switch (freq) {
+        case "weekly":
+          date.setDate(date.getDate() + i * 7);
+          break;
+        case "bi-weekly":
+          date.setDate(date.getDate() + i * 14);
+          break;
+        case "semi-monthly":
+          // Simplified: 15 days apart
+          date.setDate(date.getDate() + i * 15);
+          break;
+        case "monthly":
+          date.setMonth(date.getMonth() + i);
+          break;
+      }
+      
+      dates.push(date.toLocaleDateString("en-US", { 
+        weekday: "short", 
+        year: "numeric", 
+        month: "short", 
+        day: "numeric" 
+      }));
+    }
+    
+    setUpcomingPayDates(dates);
+  };
+
+  const handleSave = () => {
+    if (!nextPayDate || !amount) {
+      alert("Please fill in all fields");
+      return;
+    }
+
+    const now = new Date().toISOString();
+    const newSchedule: PaySchedule = {
+      id: schedule?.id || crypto.randomUUID(),
+      frequency,
+      nextPayDate: new Date(nextPayDate).toISOString(),
+      typicalAmount: parseFloat(amount),
+      createdAt: schedule?.createdAt || now,
+      updatedAt: now,
+    };
+
+    Storage.set(StorageKeys.PAY_SCHEDULE, newSchedule);
+    setSchedule(newSchedule);
+    calculateUpcomingPayDates(newSchedule.nextPayDate, frequency);
+    setIsSaved(true);
+
+    setTimeout(() => setIsSaved(false), 2000);
+  };
 
   return (
-    <div className="space-y-8">
-      <div className="flex items-center justify-between">
+    <div className="container mx-auto py-8 px-4">
+      <div className="max-w-2xl mx-auto space-y-6">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Income</h1>
-          <p className="text-muted-foreground">Track all your income sources</p>
+          <h1 className="text-3xl font-bold mb-2">Income Schedule</h1>
+          <p className="text-muted-foreground">
+            Set up your pay frequency and schedule to track your income
+          </p>
         </div>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="mr-2 h-4 w-4" />
-              Add Income
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Pay Schedule</CardTitle>
+            <CardDescription>
+              Configure when and how much you get paid
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Pay Frequency</label>
+              <Select value={frequency} onValueChange={(val) => setFrequency(val as PayFrequency)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select frequency" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="weekly">Weekly</SelectItem>
+                  <SelectItem value="bi-weekly">Bi-Weekly (Every 2 weeks)</SelectItem>
+                  <SelectItem value="semi-monthly">Semi-Monthly (Twice per month)</SelectItem>
+                  <SelectItem value="monthly">Monthly</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Next Pay Date</label>
+              <Input
+                type="date"
+                value={nextPayDate}
+                onChange={(e) => setNextPayDate(e.target.value)}
+                placeholder="Select date"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Typical Net Amount ($)</label>
+              <Input
+                type="number"
+                step="0.01"
+                min="0"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                placeholder="0.00"
+              />
+            </div>
+
+            <Button onClick={handleSave} className="w-full">
+              {isSaved ? "Saved ✓" : "Save Schedule"}
             </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Add New Income</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Source</label>
-                <Input placeholder="e.g., Monthly Salary" />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Amount</label>
-                <Input type="number" placeholder="0.00" />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Category</label>
-                <Select>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select category" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="salary">Salary</SelectItem>
-                    <SelectItem value="freelance">Freelance</SelectItem>
-                    <SelectItem value="investment">Investment</SelectItem>
-                    <SelectItem value="rental">Rental</SelectItem>
-                    <SelectItem value="consulting">Consulting</SelectItem>
-                    <SelectItem value="other">Other</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Date</label>
-                <Input type="date" />
-              </div>
-              <Button className="w-full">Add Income</Button>
-            </div>
-          </DialogContent>
-        </Dialog>
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Income</CardTitle>
-            <TrendingUp className="h-4 w-4 text-green-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">
-              {formatCurrency(totalIncome)}
-            </div>
-            <p className="text-xs text-muted-foreground">All time</p>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Monthly Recurring
-            </CardTitle>
-            <TrendingUp className="h-4 w-4 text-blue-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-blue-600">
-              {formatCurrency(monthlyRecurring)}
-            </div>
-            <p className="text-xs text-muted-foreground">Expected monthly</p>
-          </CardContent>
-        </Card>
+        {upcomingPayDates.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Upcoming Pay Dates</CardTitle>
+              <CardDescription>Your next 3 paychecks</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ul className="space-y-2">
+                {upcomingPayDates.map((date, index) => (
+                  <li key={index} className="flex items-center justify-between py-2 border-b last:border-0">
+                    <span className="font-medium">Paycheck #{index + 1}</span>
+                    <span className="text-muted-foreground">{date}</span>
+                  </li>
+                ))}
+              </ul>
+              {schedule && (
+                <div className="mt-4 pt-4 border-t">
+                  <div className="flex justify-between items-center">
+                    <span className="font-semibold">Expected Amount:</span>
+                    <span className="text-lg font-bold text-green-600">
+                      ${schedule.typicalAmount.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
       </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Income Transactions</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Date</TableHead>
-                <TableHead>Source</TableHead>
-                <TableHead>Category</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead className="text-right">Amount</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {incomeTransactions.map((transaction) => (
-                <TableRow key={transaction.id}>
-                  <TableCell className="font-medium">
-                    {formatDate(transaction.date)}
-                  </TableCell>
-                  <TableCell>{transaction.source}</TableCell>
-                  <TableCell>
-                    <Badge variant="default">{transaction.category}</Badge>
-                  </TableCell>
-                  <TableCell>
-                    <Badge
-                      variant={transaction.recurring ? "secondary" : "outline"}
-                    >
-                      {transaction.recurring ? "Recurring" : "One-time"}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-right font-semibold text-green-600">
-                    {formatCurrency(transaction.amount)}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
     </div>
   );
 }
