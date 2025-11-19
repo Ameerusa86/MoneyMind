@@ -28,6 +28,7 @@ const navItems = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard },
   { name: "Income", href: "/income", icon: TrendingUp },
   { name: "Expenses", href: "/expenses", icon: TrendingDown },
+  { name: "Accounts", href: "/accounts", icon: Wallet },
   { name: "Credit Cards", href: "/credit-cards", icon: CreditCard },
   { name: "Loans", href: "/loans", icon: Landmark },
 ];
