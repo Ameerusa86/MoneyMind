@@ -14,6 +14,7 @@ import {
   User,
   LogIn,
   CalendarDays,
+  ChevronDown,
 } from "lucide-react";
 import { useState } from "react";
 import {
@@ -24,11 +25,20 @@ import {
   SheetTrigger,
   SheetClose,
 } from "@/components/ui/sheet";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 const navItems = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard },
   { name: "Income", href: "/income", icon: TrendingUp },
   { name: "Expenses", href: "/expenses", icon: TrendingDown },
+];
+
+const financeItems = [
   { name: "Accounts", href: "/accounts", icon: Wallet },
   { name: "Bills", href: "/bills", icon: Landmark },
   { name: "Planner", href: "/payment-planner", icon: CalendarDays },
@@ -39,6 +49,8 @@ const navItems = [
 export function Navbar() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+
+  const isFinanceActive = financeItems.some((item) => pathname === item.href);
 
   return (
     <nav className="border-b bg-gray-950 border-gray-800">
@@ -74,7 +86,46 @@ export function Navbar() {
                 </Link>
               );
             })}
-            {/* Theme toggle removed */}
+
+            {/* Finances Dropdown */}
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                className={cn(
+                  "flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors",
+                  isFinanceActive
+                    ? "bg-purple-600 text-white"
+                    : "text-gray-300 hover:bg-gray-800 hover:text-white"
+                )}
+              >
+                <Wallet className="h-4 w-4" />
+                Finances
+                <ChevronDown className="h-3 w-3" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="bg-gray-950 border-gray-800">
+                {financeItems.map((item) => {
+                  const Icon = item.icon;
+                  const isActive = pathname === item.href;
+
+                  return (
+                    <DropdownMenuItem key={item.href} asChild>
+                      <Link
+                        href={item.href}
+                        className={cn(
+                          "flex items-center gap-2 px-3 py-2 cursor-pointer",
+                          isActive
+                            ? "bg-purple-600 text-white"
+                            : "text-gray-300 hover:bg-gray-800 hover:text-white"
+                        )}
+                      >
+                        <Icon className="h-4 w-4" />
+                        {item.name}
+                      </Link>
+                    </DropdownMenuItem>
+                  );
+                })}
+              </DropdownMenuContent>
+            </DropdownMenu>
+
             <div className="flex items-center gap-2 ml-2 pl-2 border-l border-gray-700">
               <Link
                 href="/login"
@@ -137,7 +188,35 @@ export function Navbar() {
                       </SheetClose>
                     );
                   })}
-                  {/* Theme toggle removed */}
+
+                  {/* Finances Section */}
+                  <div className="mt-2">
+                    <div className="px-4 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                      Finances
+                    </div>
+                    {financeItems.map((item) => {
+                      const Icon = item.icon;
+                      const isActive = pathname === item.href;
+
+                      return (
+                        <SheetClose asChild key={item.href}>
+                          <Link
+                            href={item.href}
+                            className={cn(
+                              "flex items-center gap-3 px-4 py-3 rounded-md text-base font-medium transition-colors",
+                              isActive
+                                ? "bg-purple-600 text-white"
+                                : "text-gray-300 hover:bg-gray-800 hover:text-white"
+                            )}
+                          >
+                            <Icon className="h-5 w-5" />
+                            {item.name}
+                          </Link>
+                        </SheetClose>
+                      );
+                    })}
+                  </div>
+
                   <div className="border-t border-gray-700 pt-2 mt-2">
                     <SheetClose asChild>
                       <Link
