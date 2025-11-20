@@ -81,6 +81,7 @@ export interface Expense {
   accountId?: string;
   description?: string;
   createdAt: string;
+  transactionId?: string; // linked Transaction id if auto-created
 }
 
 export interface PlannedPayment {

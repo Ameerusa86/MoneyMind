@@ -5,6 +5,7 @@ import {
   errorResponse,
 } from "@/lib/api-auth";
 import Expense from "@/lib/models/Expense";
+import Transaction from "@/lib/models/Transaction";
 import dbConnect from "@/lib/mongoose";
 
 // GET /api/expenses/[id] - Get single expense
@@ -80,6 +81,35 @@ export async function PUT(
       return NextResponse.json({ error: "Expense not found" }, { status: 404 });
     }
 
+    // Sync corresponding Transaction (if any) with updated expense values
+    // Find by metadata.expenseId
+    const existingTxn = await Transaction.findOne({
+      userId,
+      type: "expense",
+      "metadata.expenseId": id,
+    });
+
+    if (existingTxn) {
+      existingTxn.fromAccountId = body.accountId;
+      existingTxn.amount = body.amount;
+      existingTxn.date = body.date;
+      existingTxn.description = body.description;
+      existingTxn.category = body.category;
+      await existingTxn.save();
+    } else if (body.accountId) {
+      // Legacy: create if missing and accountId present
+      await Transaction.create({
+        userId,
+        type: "expense",
+        fromAccountId: body.accountId,
+        amount: body.amount,
+        date: body.date,
+        description: body.description,
+        category: body.category,
+        metadata: { expenseId: id },
+      });
+    }
+
     return NextResponse.json({
       id: expense._id.toString(),
       userId: expense.userId,
@@ -113,6 +143,13 @@ export async function DELETE(
     if (result.deletedCount === 0) {
       return NextResponse.json({ error: "Expense not found" }, { status: 404 });
     }
+
+    // Also delete corresponding Transaction if present
+    await Transaction.deleteOne({
+      userId,
+      type: "expense",
+      "metadata.expenseId": id,
+    });
 
     return NextResponse.json({ success: true });
   } catch (error) {

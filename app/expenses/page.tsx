@@ -109,7 +109,8 @@ export default function ExpensesPage() {
       !formData.description ||
       !formData.amount ||
       !formData.category ||
-      !formData.date
+      !formData.date ||
+      !formData.accountId
     ) {
       alert("Please fill in all required fields");
       return;
@@ -122,7 +123,7 @@ export default function ExpensesPage() {
         amount: parseFloat(formData.amount),
         category: formData.category as ExpenseCategory,
         description: formData.description,
-        accountId: formData.accountId || undefined,
+        accountId: formData.accountId,
       });
     } else {
       // Add new expense
@@ -131,7 +132,7 @@ export default function ExpensesPage() {
         amount: parseFloat(formData.amount),
         category: formData.category as ExpenseCategory,
         description: formData.description,
-        accountId: formData.accountId || undefined,
+        accountId: formData.accountId,
       });
     }
 
@@ -311,23 +312,21 @@ export default function ExpensesPage() {
                 />
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium">
-                  Account (Optional)
-                </label>
+                <label className="text-sm font-medium">Account *</label>
                 <Select
                   value={formData.accountId || undefined}
                   onValueChange={(value) =>
                     setFormData({
                       ...formData,
-                      accountId: value === "none" ? "" : value,
+                      accountId: value,
                     })
                   }
+                  required
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select account" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="none">None</SelectItem>
                     {accounts.map((account) => (
                       <SelectItem key={account.id} value={account.id}>
                         {account.name}
@@ -412,7 +411,7 @@ export default function ExpensesPage() {
                 <TableBody>
                   {expenses.map((expense) => {
                     const account = expense.accountId
-                      ? AccountStorage.getById(expense.accountId)
+                      ? accounts.find((a) => a.id === expense.accountId) || null
                       : null;
                     return (
                       <TableRow key={expense.id}>
