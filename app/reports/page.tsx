@@ -174,7 +174,7 @@ export default function ReportsPage() {
                 Expenses (Last {MONTH_WINDOW} Months)
               </CardTitle>
             </CardHeader>
-            <CardContent className="h-80">
+            <CardContent className="h-[300px] sm:h-80">
               {mounted && (
                 <ResponsiveContainer width="100%" height="100%">
                   <ReLineChart data={incomeVsExpenseData}>
@@ -254,7 +254,7 @@ export default function ReportsPage() {
                 Expense Totals
               </CardTitle>
             </CardHeader>
-            <CardContent className="h-80">
+            <CardContent className="h-[300px] sm:h-80">
               {mounted && (
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart
@@ -305,7 +305,7 @@ export default function ReportsPage() {
                 Breakdown (Stacked)
               </CardTitle>
             </CardHeader>
-            <CardContent className="h-96">
+            <CardContent className="h-80 sm:h-96">
               {mounted && (
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={categoryChartData}>

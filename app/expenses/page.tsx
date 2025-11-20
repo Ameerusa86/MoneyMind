@@ -11,6 +11,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { ResponsiveTable } from "@/components/ui/responsive-table";
 import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
@@ -377,7 +378,8 @@ export default function ExpensesPage() {
               No expenses yet. Click "Add Expense" to get started.
             </div>
           ) : (
-            <Table>
+            <ResponsiveTable>
+              <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Date</TableHead>
@@ -432,7 +434,8 @@ export default function ExpensesPage() {
                   );
                 })}
               </TableBody>
-            </Table>
+              </Table>
+            </ResponsiveTable>
           )}
         </CardContent>
       </Card>

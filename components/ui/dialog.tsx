@@ -41,7 +41,10 @@ const DialogContent = React.forwardRef<
         "bg-white dark:bg-gray-900",
         "border-gray-300 dark:border-gray-700",
         "text-gray-900 dark:text-gray-100",
-        "p-6",
+        // Responsive padding & mobile friendliness
+        "p-4 sm:p-6",
+        // Constrain height on very small viewports and allow internal scroll
+        "max-h-[85vh] overflow-y-auto",
         "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%]",
         className
       )}

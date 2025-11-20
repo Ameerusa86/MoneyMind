@@ -12,6 +12,13 @@ export const metadata: Metadata = {
   title: "WalletWave - Manage Your Personal Finances",
   description:
     "Track your income, expenses, credit cards, loans, and payments in one place",
+  viewport: {
+    width: "device-width",
+    initialScale: 1,
+    maximumScale: 1,
+    userScalable: false,
+  },
+  manifest: "/manifest.json",
 };
 
 export default function RootLayout({
