@@ -19,15 +19,33 @@ import {
   DollarSign,
   AlertCircle,
 } from "lucide-react";
-import { formatCurrency, formatDate } from "@/lib/utils";
+import { formatCurrency } from "@/lib/utils";
 import { AccountStorage } from "@/lib/storage";
 import { Account } from "@/lib/types";
-import Link from "next/link";
 
 export default function CreditCardsPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  // Add Card form state
+  const [cardName, setCardName] = useState("");
+  const [cardLast4, setCardLast4] = useState("");
+  const [cardLimit, setCardLimit] = useState("");
+  const [cardBalance, setCardBalance] = useState("");
+  const [cardDueDate, setCardDueDate] = useState("");
+  const [cardApr, setCardApr] = useState("");
   const [creditCards, setCreditCards] = useState<Account[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  // Edit Card state
+  const [editingCard, setEditingCard] = useState<Account | null>(null);
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [editSaving, setEditSaving] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editLimit, setEditLimit] = useState("");
+  const [editBalance, setEditBalance] = useState("");
+  const [editDueDay, setEditDueDay] = useState("");
+  const [editApr, setEditApr] = useState("");
 
   useEffect(() => {
     const loadCreditCards = async () => {
@@ -52,6 +70,150 @@ export default function CreditCardsPage() {
   const utilizationRate =
     totalLimit > 0 ? (totalBalance / totalLimit) * 100 : 0;
 
+  const resetAddForm = () => {
+    setCardName("");
+    setCardLast4("");
+    setCardLimit("");
+    setCardBalance("");
+    setCardDueDate("");
+    setCardApr("");
+    setErrorMsg(null);
+  };
+
+  const handleAddCard = async () => {
+    setErrorMsg(null);
+    // Basic validation
+    if (!cardName.trim()) {
+      setErrorMsg("Card name is required");
+      return;
+    }
+    const balanceNum = Number(cardBalance || 0);
+    if (!Number.isFinite(balanceNum)) {
+      setErrorMsg("Balance must be a number");
+      return;
+    }
+    const limitNum = cardLimit ? Number(cardLimit) : undefined;
+    if (cardLimit && !Number.isFinite(Number(cardLimit))) {
+      setErrorMsg("Credit limit must be a number");
+      return;
+    }
+    const aprNum = cardApr ? Number(cardApr) : undefined;
+    if (cardApr && !Number.isFinite(Number(cardApr))) {
+      setErrorMsg("APR must be a number");
+      return;
+    }
+    let dueDayNum: number | undefined = undefined;
+    if (cardDueDate) {
+      const d = new Date(cardDueDate);
+      if (!isNaN(d.getTime())) {
+        dueDayNum = d.getDate();
+      }
+    }
+
+    const nameWithLast4 = cardLast4
+      ? `${cardName.trim()} •••• ${cardLast4.trim()}`
+      : cardName.trim();
+
+    setIsSaving(true);
+    try {
+      const created = await AccountStorage.add({
+        name: nameWithLast4,
+        type: "credit",
+        balance: balanceNum,
+        creditLimit: limitNum,
+        apr: aprNum,
+        dueDay: dueDayNum,
+      });
+      if (!created) {
+        setErrorMsg("Failed to add credit card");
+        return;
+      }
+      setCreditCards((prev) => [created, ...prev]);
+      resetAddForm();
+      setIsDialogOpen(false);
+    } catch (e) {
+      setErrorMsg("Unexpected error adding card");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const openEdit = (card: Account) => {
+    setEditingCard(card);
+    setEditName(card.name);
+    setEditLimit(card.creditLimit != null ? String(card.creditLimit) : "");
+    setEditBalance(String(card.balance));
+    setEditDueDay(card.dueDay != null ? String(card.dueDay) : "");
+    setEditApr(card.apr != null ? String(card.apr) : "");
+    setEditError(null);
+    setIsEditOpen(true);
+  };
+
+  const handleEditSave = async () => {
+    if (!editingCard) return;
+    setEditError(null);
+    if (!editName.trim()) {
+      setEditError("Card name is required");
+      return;
+    }
+    const updates: Partial<Account> = {} as Partial<Account>;
+    updates.name = editName.trim();
+    const bal = Number(editBalance || 0);
+    if (!Number.isFinite(bal)) {
+      setEditError("Balance must be a number");
+      return;
+    }
+    updates.balance = bal;
+    if (editLimit !== "") {
+      const lim = Number(editLimit);
+      if (!Number.isFinite(lim)) {
+        setEditError("Credit limit must be a number");
+        return;
+      }
+      updates.creditLimit = lim;
+    } else {
+      updates.creditLimit = undefined;
+    }
+    if (editApr !== "") {
+      const a = Number(editApr);
+      if (!Number.isFinite(a)) {
+        setEditError("APR must be a number");
+        return;
+      }
+      updates.apr = a;
+    } else {
+      updates.apr = undefined;
+    }
+    if (editDueDay !== "") {
+      const dd = Number(editDueDay);
+      if (!Number.isFinite(dd) || dd < 1 || dd > 31) {
+        setEditError("Due day must be between 1 and 31");
+        return;
+      }
+      updates.dueDay = dd;
+    } else {
+      updates.dueDay = undefined;
+    }
+
+    setEditSaving(true);
+    try {
+      const updated = await AccountStorage.update(editingCard.id, updates);
+      if (!updated) {
+        setEditError("Failed to update card");
+        return;
+      }
+      setCreditCards((prev) =>
+        prev.map((c) => (c.id === editingCard.id ? updated : c))
+      );
+      setIsEditOpen(false);
+      setEditingCard(null);
+    } catch (e) {
+      setEditError("Unexpected error updating card");
+    } finally {
+      setEditSaving(false);
+    }
+  };
+
   return (
     <div className="space-y-8">
       <div className="flex items-center justify-between">
@@ -61,7 +223,13 @@ export default function CreditCardsPage() {
             Manage your credit cards and track balances
           </p>
         </div>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <Dialog
+          open={isDialogOpen}
+          onOpenChange={(open) => {
+            setIsDialogOpen(open);
+            if (!open) resetAddForm();
+          }}
+        >
           <DialogTrigger asChild>
             <Button>
               <Plus className="mr-2 h-4 w-4" />
@@ -77,39 +245,77 @@ export default function CreditCardsPage() {
                 <label className="text-sm font-medium text-gray-900 dark:text-gray-100">
                   Card Name
                 </label>
-                <Input placeholder="e.g., Chase Sapphire" />
+                <Input
+                  placeholder="e.g., Chase Sapphire"
+                  value={cardName}
+                  onChange={(e) => setCardName(e.target.value)}
+                />
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-medium text-gray-900 dark:text-gray-100">
                   Last 4 Digits
                 </label>
-                <Input placeholder="1234" maxLength={4} />
+                <Input
+                  placeholder="1234"
+                  maxLength={4}
+                  value={cardLast4}
+                  onChange={(e) =>
+                    setCardLast4(e.target.value.replace(/[^0-9]/g, ""))
+                  }
+                />
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-medium text-gray-900 dark:text-gray-100">
                   Credit Limit
                 </label>
-                <Input type="number" placeholder="0.00" />
+                <Input
+                  type="number"
+                  placeholder="0.00"
+                  value={cardLimit}
+                  onChange={(e) => setCardLimit(e.target.value)}
+                />
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-medium text-gray-900 dark:text-gray-100">
                   Current Balance
                 </label>
-                <Input type="number" placeholder="0.00" />
+                <Input
+                  type="number"
+                  placeholder="0.00"
+                  value={cardBalance}
+                  onChange={(e) => setCardBalance(e.target.value)}
+                />
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-medium text-gray-900 dark:text-gray-100">
                   Due Date
                 </label>
-                <Input type="date" />
+                <Input
+                  type="date"
+                  value={cardDueDate}
+                  onChange={(e) => setCardDueDate(e.target.value)}
+                />
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-medium text-gray-900 dark:text-gray-100">
                   Interest Rate (%)
                 </label>
-                <Input type="number" step="0.01" placeholder="0.00" />
+                <Input
+                  type="number"
+                  step="0.01"
+                  placeholder="0.00"
+                  value={cardApr}
+                  onChange={(e) => setCardApr(e.target.value)}
+                />
               </div>
-              <Button className="w-full">Add Credit Card</Button>
+              {errorMsg && <p className="text-sm text-red-600">{errorMsg}</p>}
+              <Button
+                className="w-full"
+                onClick={handleAddCard}
+                disabled={isSaving}
+              >
+                {isSaving ? "Adding..." : "Add Credit Card"}
+              </Button>
             </div>
           </DialogContent>
         </Dialog>
@@ -181,12 +387,10 @@ export default function CreditCardsPage() {
               <p className="text-muted-foreground mb-4">
                 Add your credit cards to track balances and utilization
               </p>
-              <Link href="/accounts">
-                <Button>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Add Credit Card
-                </Button>
-              </Link>
+              <Button onClick={() => setIsDialogOpen(true)}>
+                <Plus className="mr-2 h-4 w-4" />
+                Add Credit Card
+              </Button>
             </div>
           </div>
         </Card>
@@ -225,6 +429,13 @@ export default function CreditCardsPage() {
                 <div className="bg-linear-to-br from-blue-600 to-purple-600 p-6 text-white">
                   <div className="flex items-start justify-between mb-8">
                     <CreditCard className="h-8 w-8" />
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => openEdit(card)}
+                    >
+                      Edit
+                    </Button>
                   </div>
                   <div className="space-y-1">
                     <p className="text-xl font-bold">{card.name}</p>
@@ -322,6 +533,98 @@ export default function CreditCardsPage() {
               </Card>
             );
           })}
+          {/* Edit Card Modal */}
+          <Dialog
+            open={isEditOpen}
+            onOpenChange={(open) => {
+              setIsEditOpen(open);
+              if (!open) setEditingCard(null);
+            }}
+          >
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Edit Credit Card</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                    Card Name
+                  </label>
+                  <Input
+                    placeholder="Card name"
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                    Credit Limit
+                  </label>
+                  <Input
+                    type="number"
+                    placeholder="0.00"
+                    value={editLimit}
+                    onChange={(e) => setEditLimit(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                    Current Balance
+                  </label>
+                  <Input
+                    type="number"
+                    placeholder="0.00"
+                    value={editBalance}
+                    onChange={(e) => setEditBalance(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                    Due Day (1-31)
+                  </label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={31}
+                    placeholder="e.g., 15"
+                    value={editDueDay}
+                    onChange={(e) => setEditDueDay(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                    APR (%)
+                  </label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    placeholder="0.00"
+                    value={editApr}
+                    onChange={(e) => setEditApr(e.target.value)}
+                  />
+                </div>
+                {editError && (
+                  <p className="text-sm text-red-600">{editError}</p>
+                )}
+                <div className="flex gap-2">
+                  <Button
+                    className="w-full"
+                    variant="outline"
+                    onClick={() => setIsEditOpen(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    className="w-full"
+                    onClick={handleEditSave}
+                    disabled={editSaving}
+                  >
+                    {editSaving ? "Saving..." : "Save Changes"}
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
         </div>
       )}
     </div>
