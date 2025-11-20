@@ -14,8 +14,9 @@ import {
   User,
   LogIn,
   CalendarDays,
-  ChevronDown,
   Waves,
+  BarChart3,
+  ChevronDown,
 } from "lucide-react";
 import { useState } from "react";
 import {
@@ -31,49 +32,29 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 
-const navItems = [
-  { name: "Dashboard", href: "/", icon: LayoutDashboard },
-  { name: "Expenses", href: "/expenses", icon: TrendingDown },
-  { name: "Calendar", href: "/calendar", icon: CalendarDays },
-];
+type NavItem = { name: string; href: string; icon: any };
 
-const financeItems = [
+const financeItems: NavItem[] = [
   { name: "Income", href: "/income", icon: TrendingUp },
+  { name: "Expenses", href: "/expenses", icon: TrendingDown },
   { name: "Accounts", href: "/accounts", icon: Wallet },
   { name: "Credit Cards", href: "/credit-cards", icon: CreditCard },
   { name: "Loans", href: "/loans", icon: Landmark },
   { name: "Bills", href: "/bills", icon: Landmark },
   { name: "Payment Planner", href: "/payment-planner", icon: CalendarDays },
-  { name: "Reports", href: "/reports", icon: LineChartIcon },
 ];
-
-function LineChartIcon(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={props.className}
-    >
-      <path d="M3 3v18h18" />
-      <polyline points="6 15 11 10 16 13 19 8" />
-    </svg>
-  );
-}
 
 export function Navbar() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
-
+  const isActive = (href: string) => pathname === href;
   const isFinanceActive = financeItems.some((item) => pathname === item.href);
 
   return (
-    <nav className="border-b bg-gray-950 border-gray-800">
+    <nav className="sticky top-0 z-40 border-b bg-gray-950/95 backdrop-blur-md border-gray-800">
       <div className="container mx-auto px-4">
         <div className="flex h-16 items-center justify-between">
           {/* Logo */}
@@ -88,55 +69,48 @@ export function Navbar() {
           </Link>
 
           {/* Desktop Navigation */}
-          <div className="hidden md:flex items-center gap-2">
-            {navItems.map((item) => {
-              const Icon = item.icon;
-              const isActive = pathname === item.href;
-
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={cn(
-                    "flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors",
-                    isActive
-                      ? "bg-purple-600 text-white"
-                      : "text-gray-300 hover:bg-gray-800 hover:text-white"
-                  )}
-                >
-                  <Icon className="h-4 w-4" />
-                  {item.name}
-                </Link>
-              );
-            })}
+          <div className="hidden md:flex items-center gap-6">
+            <Link
+              href="/"
+              className={cn(
+                "flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors",
+                isActive("/")
+                  ? "text-blue-400"
+                  : "text-gray-300 hover:text-white"
+              )}
+            >
+              <LayoutDashboard className="h-4 w-4" />
+              Dashboard
+            </Link>
 
             {/* Finances Dropdown */}
             <DropdownMenu>
               <DropdownMenuTrigger
                 className={cn(
-                  "flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors",
+                  "flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors outline-none",
                   isFinanceActive
-                    ? "bg-purple-600 text-white"
-                    : "text-gray-300 hover:bg-gray-800 hover:text-white"
+                    ? "text-blue-400"
+                    : "text-gray-300 hover:text-white"
                 )}
               >
                 <Wallet className="h-4 w-4" />
                 Finances
                 <ChevronDown className="h-3 w-3" />
               </DropdownMenuTrigger>
-              <DropdownMenuContent className="bg-gray-950 border-gray-800">
+              <DropdownMenuContent
+                align="start"
+                className="w-56 bg-gray-900 border-gray-800"
+              >
                 {financeItems.map((item) => {
                   const Icon = item.icon;
-                  const isActive = pathname === item.href;
-
                   return (
                     <DropdownMenuItem key={item.href} asChild>
                       <Link
                         href={item.href}
                         className={cn(
-                          "flex items-center gap-2 px-3 py-2 cursor-pointer",
-                          isActive
-                            ? "bg-purple-600 text-white"
+                          "flex items-center gap-3 px-3 py-2 cursor-pointer",
+                          isActive(item.href)
+                            ? "bg-blue-600/20 text-blue-400"
                             : "text-gray-300 hover:bg-gray-800 hover:text-white"
                         )}
                       >
@@ -149,27 +123,53 @@ export function Navbar() {
               </DropdownMenuContent>
             </DropdownMenu>
 
-            <div className="flex items-center gap-2 ml-4 pl-4 border-l border-gray-700">
-              <Link
-                href="/login"
-                className="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors text-gray-300 hover:bg-gray-800 hover:text-white"
-              >
-                <LogIn className="h-4 w-4" />
-                Login
-              </Link>
-              <Link
-                href="/register"
-                className="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors bg-linear-to-r from-blue-600 to-purple-600 text-white hover:from-blue-500 hover:to-purple-500"
-              >
-                <User className="h-4 w-4" />
-                Sign Up
-              </Link>
-            </div>
+            <Link
+              href="/calendar"
+              className={cn(
+                "flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors",
+                isActive("/calendar")
+                  ? "text-blue-400"
+                  : "text-gray-300 hover:text-white"
+              )}
+            >
+              <CalendarDays className="h-4 w-4" />
+              Calendar
+            </Link>
+
+            <Link
+              href="/reports"
+              className={cn(
+                "flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors",
+                isActive("/reports")
+                  ? "text-blue-400"
+                  : "text-gray-300 hover:text-white"
+              )}
+            >
+              <BarChart3 className="h-4 w-4" />
+              Reports
+            </Link>
           </div>
 
-          {/* Mobile Navigation */}
+          {/* Right Section */}
+          <div className="hidden md:flex items-center gap-3">
+            <Link
+              href="/login"
+              className="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors text-gray-300 hover:text-white"
+            >
+              <LogIn className="h-4 w-4" />
+              Login
+            </Link>
+            <Link
+              href="/register"
+              className="flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all bg-linear-to-r from-blue-600 to-purple-600 text-white hover:from-blue-500 hover:to-purple-500 hover:shadow-lg hover:shadow-purple-500/25"
+            >
+              <User className="h-4 w-4" />
+              Sign Up
+            </Link>
+          </div>
+
+          {/* Mobile Menu */}
           <div className="flex md:hidden items-center gap-2">
-            {/* Theme toggle removed */}
             <Sheet open={open} onOpenChange={setOpen}>
               <SheetTrigger asChild>
                 <button
@@ -181,7 +181,7 @@ export function Navbar() {
               </SheetTrigger>
               <SheetContent
                 side="right"
-                className="w-64 bg-gray-950 border-l border-gray-800"
+                className="w-80 bg-gray-950 border-l border-gray-800"
               >
                 <SheetHeader>
                   <SheetTitle className="flex items-center gap-2 text-gray-100">
@@ -189,19 +189,35 @@ export function Navbar() {
                     WalletWave
                   </SheetTitle>
                 </SheetHeader>
-                <div className="flex flex-col gap-2 mt-8">
-                  {navItems.map((item) => {
-                    const Icon = item.icon;
-                    const isActive = pathname === item.href;
+                <div className="flex flex-col gap-4 mt-8">
+                  <SheetClose asChild>
+                    <Link
+                      href="/"
+                      className={cn(
+                        "flex items-center gap-3 px-4 py-3 rounded-md text-base font-medium transition-colors",
+                        isActive("/")
+                          ? "bg-blue-600/20 text-blue-400"
+                          : "text-gray-300 hover:bg-gray-800 hover:text-white"
+                      )}
+                    >
+                      <LayoutDashboard className="h-5 w-5" />
+                      Dashboard
+                    </Link>
+                  </SheetClose>
 
+                  <div className="px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                    Finances
+                  </div>
+                  {financeItems.map((item) => {
+                    const Icon = item.icon;
                     return (
                       <SheetClose asChild key={item.href}>
                         <Link
                           href={item.href}
                           className={cn(
                             "flex items-center gap-3 px-4 py-3 rounded-md text-base font-medium transition-colors",
-                            isActive
-                              ? "bg-purple-600 text-white"
+                            isActive(item.href)
+                              ? "bg-blue-600/20 text-blue-400"
                               : "text-gray-300 hover:bg-gray-800 hover:text-white"
                           )}
                         >
@@ -212,35 +228,39 @@ export function Navbar() {
                     );
                   })}
 
-                  {/* Finances Section */}
-                  <div className="mt-2">
-                    <div className="px-4 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
-                      Finances
-                    </div>
-                    {financeItems.map((item) => {
-                      const Icon = item.icon;
-                      const isActive = pathname === item.href;
+                  <div className="border-t border-gray-800 my-2" />
 
-                      return (
-                        <SheetClose asChild key={item.href}>
-                          <Link
-                            href={item.href}
-                            className={cn(
-                              "flex items-center gap-3 px-4 py-3 rounded-md text-base font-medium transition-colors",
-                              isActive
-                                ? "bg-purple-600 text-white"
-                                : "text-gray-300 hover:bg-gray-800 hover:text-white"
-                            )}
-                          >
-                            <Icon className="h-5 w-5" />
-                            {item.name}
-                          </Link>
-                        </SheetClose>
-                      );
-                    })}
-                  </div>
+                  <SheetClose asChild>
+                    <Link
+                      href="/calendar"
+                      className={cn(
+                        "flex items-center gap-3 px-4 py-3 rounded-md text-base font-medium transition-colors",
+                        isActive("/calendar")
+                          ? "bg-blue-600/20 text-blue-400"
+                          : "text-gray-300 hover:bg-gray-800 hover:text-white"
+                      )}
+                    >
+                      <CalendarDays className="h-5 w-5" />
+                      Calendar
+                    </Link>
+                  </SheetClose>
 
-                  <div className="border-t border-gray-700 pt-2 mt-2">
+                  <SheetClose asChild>
+                    <Link
+                      href="/reports"
+                      className={cn(
+                        "flex items-center gap-3 px-4 py-3 rounded-md text-base font-medium transition-colors",
+                        isActive("/reports")
+                          ? "bg-blue-600/20 text-blue-400"
+                          : "text-gray-300 hover:bg-gray-800 hover:text-white"
+                      )}
+                    >
+                      <BarChart3 className="h-5 w-5" />
+                      Reports
+                    </Link>
+                  </SheetClose>
+
+                  <div className="border-t border-gray-800 pt-4 mt-4 space-y-2">
                     <SheetClose asChild>
                       <Link
                         href="/login"
@@ -253,10 +273,10 @@ export function Navbar() {
                     <SheetClose asChild>
                       <Link
                         href="/register"
-                        className="flex items-center gap-3 px-4 py-3 rounded-md text-base font-medium transition-colors bg-purple-600 text-white hover:bg-purple-500 mt-2"
+                        className="flex items-center gap-3 px-4 py-3 rounded-md text-base font-medium transition-colors bg-linear-to-r from-blue-600 to-purple-600 text-white hover:from-blue-500 hover:to-purple-500"
                       >
                         <User className="h-5 w-5" />
-                        Register
+                        Sign Up
                       </Link>
                     </SheetClose>
                   </div>
