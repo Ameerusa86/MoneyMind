@@ -1,6 +1,6 @@
 import { betterAuth } from "better-auth";
 import { mongodbAdapter } from "better-auth/adapters/mongodb";
-import { getDb, getMongoClient } from "./mongodb";
+import { getAuthDb, getMongoClient } from "./mongodb";
 import { username } from "better-auth/plugins";
 
 const required = (key: string) => {
@@ -12,7 +12,7 @@ const required = (key: string) => {
 };
 
 export const auth = (async () => {
-  const db = await getDb();
+  const db = await getAuthDb();
   const client = await getMongoClient();
 
   return betterAuth({

@@ -22,10 +22,24 @@ if (process.env.NODE_ENV === "development") {
   clientPromise = client.connect();
 }
 
+const APP_DB =
+  process.env.MONGODB_APP_DB || process.env.MONGODB_DB || "WalletWave";
+const AUTH_DB = process.env.MONGODB_AUTH_DB || "WalletWaveAuth";
+
 export async function getDb(): Promise<Db> {
-  const dbName = process.env.MONGODB_DB || "WalletWave";
+  // Backwards compatible: default to application data DB
   const client = await clientPromise;
-  return client.db(dbName);
+  return client.db(APP_DB);
+}
+
+export async function getAppDb(): Promise<Db> {
+  const client = await clientPromise;
+  return client.db(APP_DB);
+}
+
+export async function getAuthDb(): Promise<Db> {
+  const client = await clientPromise;
+  return client.db(AUTH_DB);
 }
 
 export async function getMongoClient(): Promise<MongoClient> {

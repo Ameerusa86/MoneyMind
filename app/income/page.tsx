@@ -17,7 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Storage, StorageKeys } from "@/lib/storage";
+import { PayScheduleStorage } from "@/lib/storage";
 import { PaySchedule, PayFrequency } from "@/lib/types";
 
 export default function IncomePage() {
@@ -30,17 +30,17 @@ export default function IncomePage() {
 
   useEffect(() => {
     // Load existing schedule
-    const saved = Storage.get<PaySchedule>(StorageKeys.PAY_SCHEDULE);
-    if (saved) {
-      setSchedule(saved);
-      setFrequency(saved.frequency);
-      setNextPayDate(saved.nextPayDate.split("T")[0]);
-      setAmount(saved.typicalAmount.toString());
-      calculateUpcomingPayDates(saved.nextPayDate, saved.frequency);
-    }
-
-    // Check storage version
-    Storage.checkVersion();
+    const loadSchedule = async () => {
+      const saved = await PayScheduleStorage.get();
+      if (saved) {
+        setSchedule(saved);
+        setFrequency(saved.frequency);
+        setNextPayDate(saved.nextPayDate.split("T")[0]);
+        setAmount(saved.typicalAmount.toString());
+        calculateUpcomingPayDates(saved.nextPayDate, saved.frequency);
+      }
+    };
+    loadSchedule();
   }, []);
 
   const calculateUpcomingPayDates = (
@@ -82,28 +82,26 @@ export default function IncomePage() {
     setUpcomingPayDates(dates);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!nextPayDate || !amount) {
       alert("Please fill in all fields");
       return;
     }
 
-    const now = new Date().toISOString();
-    const newSchedule: PaySchedule = {
-      id: schedule?.id || crypto.randomUUID(),
+    const scheduleData = {
       frequency,
       nextPayDate: new Date(nextPayDate).toISOString(),
       typicalAmount: parseFloat(amount),
-      createdAt: schedule?.createdAt || now,
-      updatedAt: now,
     };
 
-    Storage.set(StorageKeys.PAY_SCHEDULE, newSchedule);
-    setSchedule(newSchedule);
-    calculateUpcomingPayDates(newSchedule.nextPayDate, frequency);
-    setIsSaved(true);
+    const newSchedule = await PayScheduleStorage.set(scheduleData);
+    if (newSchedule) {
+      setSchedule(newSchedule);
+      calculateUpcomingPayDates(newSchedule.nextPayDate, frequency);
+      setIsSaved(true);
 
-    setTimeout(() => setIsSaved(false), 2000);
+      setTimeout(() => setIsSaved(false), 2000);
+    }
   };
 
   return (

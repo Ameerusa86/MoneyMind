@@ -36,12 +36,16 @@ export function RecentTransactions() {
 
   useEffect(() => {
     setIsMounted(true);
-    const allExpenses = ExpenseStorage.getAll();
-    // Sort by date descending and take first 6
-    allExpenses.sort(
-      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
-    );
-    setExpenses(allExpenses.slice(0, 6));
+    const fetchData = async () => {
+      const allExpenses = await ExpenseStorage.getAll();
+      // Sort by date descending and take first 6
+      allExpenses.sort(
+        (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+      );
+      setExpenses(allExpenses.slice(0, 6));
+    };
+
+    fetchData();
   }, []);
 
   return (

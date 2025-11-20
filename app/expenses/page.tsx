@@ -93,8 +93,8 @@ export default function ExpensesPage() {
     loadExpenses();
   }, []);
 
-  const loadExpenses = () => {
-    const allExpenses = ExpenseStorage.getAll();
+  const loadExpenses = async () => {
+    const allExpenses = await ExpenseStorage.getAll();
     // Sort by date descending
     allExpenses.sort(
       (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
@@ -102,7 +102,7 @@ export default function ExpensesPage() {
     setExpenses(allExpenses);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (
@@ -117,7 +117,7 @@ export default function ExpensesPage() {
 
     if (editingId) {
       // Update existing expense
-      ExpenseStorage.update(editingId, {
+      await ExpenseStorage.update(editingId, {
         date: formData.date,
         amount: parseFloat(formData.amount),
         category: formData.category as ExpenseCategory,
@@ -126,7 +126,7 @@ export default function ExpensesPage() {
       });
     } else {
       // Add new expense
-      ExpenseStorage.add({
+      await ExpenseStorage.add({
         date: formData.date,
         amount: parseFloat(formData.amount),
         category: formData.category as ExpenseCategory,
@@ -145,7 +145,7 @@ export default function ExpensesPage() {
     });
     setEditingId(null);
     setIsDialogOpen(false);
-    loadExpenses();
+    await loadExpenses();
   };
 
   const handleEdit = (expense: Expense) => {
@@ -160,30 +160,49 @@ export default function ExpensesPage() {
     setIsDialogOpen(true);
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (confirm("Are you sure you want to delete this expense?")) {
-      ExpenseStorage.delete(id);
-      loadExpenses();
+      await ExpenseStorage.delete(id);
+      await loadExpenses();
     }
   };
 
-  // Get current month's expenses
-  const now = new Date();
-  const currentMonthExpenses = isMounted
-    ? ExpenseStorage.getByMonth(now.getFullYear(), now.getMonth())
-    : [];
+  // State for current month's expenses and accounts
+  const [currentMonthExpenses, setCurrentMonthExpenses] = useState<Expense[]>(
+    []
+  );
+  const [accounts, setAccounts] = useState<any[]>([]);
+
+  // Load current month data
+  useEffect(() => {
+    if (!isMounted) return;
+
+    const loadMonthData = async () => {
+      const now = new Date();
+      const [monthExpenses, allAccounts] = await Promise.all([
+        ExpenseStorage.getByMonth(now.getFullYear(), now.getMonth()),
+        AccountStorage.getAll(),
+      ]);
+      setCurrentMonthExpenses(monthExpenses);
+      setAccounts(allAccounts);
+    };
+
+    loadMonthData();
+  }, [isMounted, expenses]);
+
   const totalExpenses = currentMonthExpenses.reduce(
     (sum, e) => sum + e.amount,
     0
   );
 
-  const categoryTotals = currentMonthExpenses.reduce((acc, expense) => {
-    const label = categoryLabels[expense.category];
-    acc[label] = (acc[label] || 0) + expense.amount;
-    return acc;
-  }, {} as Record<string, number>);
-
-  const accounts = isMounted ? AccountStorage.getAll() : [];
+  const categoryTotals = currentMonthExpenses.reduce(
+    (acc, expense) => {
+      const label = categoryLabels[expense.category];
+      acc[label] = (acc[label] || 0) + expense.amount;
+      return acc;
+    },
+    {} as Record<string, number>
+  );
 
   return (
     <div className="space-y-8">

@@ -1,18 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Landmark, Wallet, DollarSign } from "lucide-react";
-import {
-  Storage,
-  StorageKeys,
-  AccountStorage,
-  BillStorage,
-  PayScheduleStorage,
-} from "@/lib/storage";
-import type { PaySchedule } from "@/lib/types";
+import { AccountStorage, BillStorage, PayScheduleStorage } from "@/lib/storage";
 import dynamic from "next/dynamic";
 import { cn } from "@/lib/utils";
 
@@ -57,65 +50,78 @@ type CalendarEvent = {
 
 function CalendarPageInner() {
   const [current, setCurrent] = useState(new Date());
+  const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const [upcoming, setUpcoming] = useState<CalendarEvent[]>([]);
 
-  const { events, upcoming } = useMemo(() => {
-    const year = current.getFullYear();
-    const month = current.getMonth();
+  // Load events whenever month changes
+  React.useEffect(() => {
+    const loadEvents = async () => {
+      const year = current.getFullYear();
+      const month = current.getMonth();
 
-    const evts: CalendarEvent[] = [];
+      const evts: CalendarEvent[] = [];
 
-    // Paydays
-    const paydays = PayScheduleStorage.getPaydaysForMonth(year, month);
-    const schedule = Storage.get<PaySchedule>(StorageKeys.PAY_SCHEDULE);
-    for (const pd of paydays) {
-      evts.push({
-        id: `pay-${pd}`,
-        date: pd,
-        type: "payday",
-        label: "Payday",
-        amount: schedule?.typicalAmount,
-      });
-    }
+      // Paydays
+      const [paydays, schedule, bills, accounts] = await Promise.all([
+        PayScheduleStorage.getPaydaysForMonth(year, month),
+        PayScheduleStorage.get(),
+        BillStorage.getDueDatesForMonth(year, month),
+        AccountStorage.getAll(),
+      ]);
 
-    // Bills
-    const bills = BillStorage.getDueDatesForMonth(year, month);
-    for (const b of bills) {
-      evts.push({
-        id: `bill-${b.id}`,
-        date: b.date,
-        type: "bill",
-        label: b.name,
-        amount: b.amount,
-      });
-    }
-
-    // Account due days (credit/loan)
-    const accounts = AccountStorage.getAll();
-    accounts.forEach((a) => {
-      if (a.dueDay) {
-        const day = Math.min(Math.max(1, a.dueDay), 28);
-        const date = new Date(year, month, day).toISOString();
+      for (const pd of paydays) {
         evts.push({
-          id: `acct-${a.id}`,
-          date,
-          type: "account",
-          label: `${a.name} Due`,
+          id: `pay-${pd}`,
+          date: pd,
+          type: "payday",
+          label: "Payday",
+          amount: schedule?.typicalAmount,
         });
       }
-    });
 
-    // Upcoming: next 14 days from today
-    const today = new Date();
-    const twoWeeks = new Date();
-    twoWeeks.setDate(today.getDate() + 14);
-    const upcomingList = evts
-      .filter((e) => {
-        const d = new Date(e.date);
-        return d >= today && d <= twoWeeks;
-      })
-      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      // Bills
+      for (const b of bills) {
+        evts.push({
+          id: `bill-${b.id}`,
+          date: b.date,
+          type: "bill",
+          label: b.name,
+          amount: b.amount,
+        });
+      }
 
-    return { events: evts, upcoming: upcomingList };
+      // Account due days (credit/loan)
+      accounts.forEach((a) => {
+        if (a.dueDay) {
+          const day = Math.min(Math.max(1, a.dueDay), 28);
+          const date = new Date(year, month, day).toISOString();
+          evts.push({
+            id: `acct-${a.id}`,
+            date,
+            type: "account",
+            label: `${a.name} Due`,
+          });
+        }
+      });
+
+      // Upcoming: next 14 days from today
+      const today = new Date();
+      const twoWeeks = new Date();
+      twoWeeks.setDate(today.getDate() + 14);
+      const upcomingList = evts
+        .filter((e) => {
+          const d = new Date(e.date);
+          return d >= today && d <= twoWeeks;
+        })
+        .sort(
+          (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+        );
+
+      setEvents(evts);
+      setUpcoming(upcomingList);
+    };
+
+    loadEvents();
   }, [current]);
 
   const gridDays = useMemo(() => daysInGrid(current), [current]);

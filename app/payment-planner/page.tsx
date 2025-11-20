@@ -18,7 +18,12 @@ import {
 } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Storage, StorageKeys } from "@/lib/storage";
+import {
+  PayScheduleStorage,
+  AccountStorage,
+  BillStorage,
+  PlannedPaymentStorage,
+} from "@/lib/storage";
 import { Account, Bill, PaySchedule, PlannedPayment } from "@/lib/types";
 
 function currency(n: number) {
@@ -100,12 +105,13 @@ export default function PaymentPlannerPage() {
   );
 
   // Initialize from storage
-  const loadAll = useCallback(() => {
-    const schedule = Storage.get<PaySchedule>(StorageKeys.PAY_SCHEDULE) || null;
-    const accs = Storage.get<Account[]>(StorageKeys.ACCOUNTS) || [];
-    const bs = Storage.get<Bill[]>(StorageKeys.BILLS) || [];
-    const pp =
-      Storage.get<PlannedPayment[]>(StorageKeys.PLANNED_PAYMENTS) || [];
+  const loadAll = useCallback(async () => {
+    const [schedule, accs, bs, pp] = await Promise.all([
+      PayScheduleStorage.get(),
+      AccountStorage.getAll(),
+      BillStorage.getAll(),
+      PlannedPaymentStorage.getAll(),
+    ]);
     setPaySchedule(schedule);
     setAccounts(accs);
     setBills(bs);
@@ -163,7 +169,7 @@ export default function PaymentPlannerPage() {
     return 0;
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!payPeriodId) {
       alert("Set your pay schedule on the Income page first.");
       return;
@@ -209,14 +215,21 @@ export default function PaymentPlannerPage() {
       }
     }
 
-    // Merge by replacing any existing entries for this pay period
-    const withoutThisPeriod = allPlanned.filter(
-      (p) => p.payPeriodId !== payPeriodId
+    // Delete existing entries for this pay period and create new ones
+    const deletePromises = plannedForPeriod.map((p) =>
+      PlannedPaymentStorage.delete(p.id)
     );
-    const merged = [...withoutThisPeriod, ...newEntries];
+    await Promise.all(deletePromises);
 
-    Storage.set(StorageKeys.PLANNED_PAYMENTS, merged);
-    setAllPlanned(merged);
+    // Create new entries
+    const createPromises = newEntries.map((entry) =>
+      PlannedPaymentStorage.add(entry)
+    );
+    await Promise.all(createPromises);
+
+    // Reload all planned payments
+    const updated = await PlannedPaymentStorage.getAll();
+    setAllPlanned(updated);
     alert("Plan saved.");
   };
 

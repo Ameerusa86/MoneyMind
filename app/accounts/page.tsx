@@ -34,7 +34,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Storage, StorageKeys } from "@/lib/storage";
+import { AccountStorage } from "@/lib/storage";
 import { Account, AccountType } from "@/lib/types";
 import { Plus, Edit, Trash2, CreditCard, Landmark } from "lucide-react";
 
@@ -54,12 +54,12 @@ export default function AccountsPage() {
   const [website, setWebsite] = useState("");
 
   useEffect(() => {
-    // Load accounts from localStorage on mount
-    const saved = Storage.get<Account[]>(StorageKeys.ACCOUNTS);
-    if (saved) {
-      // eslint-disable-next-line react-compiler/react-compiler
+    // Load accounts from API on mount
+    const loadAccounts = async () => {
+      const saved = await AccountStorage.getAll();
       setAccounts(saved);
-    }
+    };
+    loadAccounts();
   }, []);
 
   const resetForm = () => {
@@ -87,23 +87,21 @@ export default function AccountsPage() {
     setIsDialogOpen(true);
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (confirm("Are you sure you want to delete this account?")) {
-      const updated = accounts.filter((a) => a.id !== id);
-      Storage.set(StorageKeys.ACCOUNTS, updated);
+      await AccountStorage.delete(id);
+      const updated = await AccountStorage.getAll();
       setAccounts(updated);
     }
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!name || !balance) {
       alert("Please fill in required fields (Name and Balance)");
       return;
     }
 
-    const now = new Date().toISOString();
-    const accountData: Account = {
-      id: editingAccount?.id || crypto.randomUUID(),
+    const accountData = {
       name,
       type,
       balance: parseFloat(balance),
@@ -112,20 +110,15 @@ export default function AccountsPage() {
       dueDay: dueDay ? parseInt(dueDay) : undefined,
       creditLimit: creditLimit ? parseFloat(creditLimit) : undefined,
       website: website || undefined,
-      createdAt: editingAccount?.createdAt || now,
-      updatedAt: now,
     };
 
-    let updated: Account[];
     if (editingAccount) {
-      updated = accounts.map((a) =>
-        a.id === editingAccount.id ? accountData : a
-      );
+      await AccountStorage.update(editingAccount.id, accountData);
     } else {
-      updated = [...accounts, accountData];
+      await AccountStorage.add(accountData);
     }
 
-    Storage.set(StorageKeys.ACCOUNTS, updated);
+    const updated = await AccountStorage.getAll();
     setAccounts(updated);
     setIsDialogOpen(false);
     resetForm();

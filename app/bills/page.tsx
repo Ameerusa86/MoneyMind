@@ -34,7 +34,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Storage, StorageKeys } from "@/lib/storage";
+import { BillStorage, AccountStorage, PayScheduleStorage } from "@/lib/storage";
 import { Bill, BillRecurrence, Account, PaySchedule } from "@/lib/types";
 import { Plus, Edit, Trash2, CalendarDays, RefreshCcw } from "lucide-react";
 
@@ -54,10 +54,12 @@ export default function BillsPage() {
   const [recurrence, setRecurrence] = useState<BillRecurrence>("monthly");
   const [linkedAccountId, setLinkedAccountId] = useState("");
 
-  const loadAll = useCallback(() => {
-    const savedBills = Storage.get<Bill[]>(StorageKeys.BILLS) || [];
-    const savedAccounts = Storage.get<Account[]>(StorageKeys.ACCOUNTS) || [];
-    const schedule = Storage.get<PaySchedule>(StorageKeys.PAY_SCHEDULE) || null;
+  const loadAll = useCallback(async () => {
+    const [savedBills, savedAccounts, schedule] = await Promise.all([
+      BillStorage.getAll(),
+      AccountStorage.getAll(),
+      PayScheduleStorage.get(),
+    ]);
     setBills(savedBills);
     setAccounts(savedAccounts);
     setPaySchedule(schedule);
@@ -82,51 +84,46 @@ export default function BillsPage() {
     setIsDialogOpen(true);
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (confirm("Delete this bill?")) {
-      const updated = bills.filter((b) => b.id !== id);
-      Storage.set(StorageKeys.BILLS, updated);
+      await BillStorage.delete(id);
+      const updated = await BillStorage.getAll();
       setBills(updated);
     }
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!name || !dueDay) {
       alert("Name and Due Day are required");
       return;
     }
 
-    const now = new Date().toISOString();
-    const bill: Bill = {
-      id: editingBill?.id || crypto.randomUUID(),
+    const billData = {
       name,
       amount: amount ? parseFloat(amount) : undefined,
       dueDay: parseInt(dueDay),
       recurrence,
       accountId: linkedAccountId || undefined,
-      createdAt: editingBill?.createdAt || now,
-      updatedAt: now,
     };
 
-    const updated = editingBill
-      ? bills.map((b) => (b.id === editingBill.id ? bill : b))
-      : [...bills, bill];
-    Storage.set(StorageKeys.BILLS, updated);
+    if (editingBill) {
+      await BillStorage.update(editingBill.id, billData);
+    } else {
+      await BillStorage.add(billData);
+    }
+
+    const updated = await BillStorage.getAll();
     setBills(updated);
     setIsDialogOpen(false);
     resetForm();
   };
 
-  const togglePaid = (billId: string) => {
-    const today = new Date();
-    const updated = bills.map((b) => {
-      if (b.id === billId) {
-        // Mark as paid by stamping updatedAt and isPaid flag
-        return { ...b, isPaid: !b.isPaid, updatedAt: today.toISOString() };
-      }
-      return b;
-    });
-    Storage.set(StorageKeys.BILLS, updated);
+  const togglePaid = async (billId: string) => {
+    const bill = bills.find((b) => b.id === billId);
+    if (!bill) return;
+
+    await BillStorage.update(billId, { isPaid: !bill.isPaid });
+    const updated = await BillStorage.getAll();
     setBills(updated);
   };
 

@@ -50,22 +50,26 @@ export function ExpenseBreakdown() {
 
   useEffect(() => {
     setIsMounted(true);
-    const now = new Date();
-    const breakdown = ExpenseStorage.getCategoryBreakdown(
-      now.getFullYear(),
-      now.getMonth()
-    );
+    const fetchData = async () => {
+      const now = new Date();
+      const breakdown = await ExpenseStorage.getCategoryBreakdown(
+        now.getFullYear(),
+        now.getMonth()
+      );
 
-    const chartData = Object.entries(breakdown)
-      .map(([category, value]) => ({
-        name: categoryLabels[category] || category,
-        value,
-        color:
-          categoryColors[categoryLabels[category] || category] || "#6b7280",
-      }))
-      .sort((a, b) => b.value - a.value);
+      const chartData = Object.entries(breakdown)
+        .map(([category, value]) => ({
+          name: categoryLabels[category] || category,
+          value,
+          color:
+            categoryColors[categoryLabels[category] || category] || "#6b7280",
+        }))
+        .sort((a, b) => b.value - a.value);
 
-    setData(chartData);
+      setData(chartData);
+    };
+
+    fetchData();
   }, []);
 
   return (

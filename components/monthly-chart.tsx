@@ -26,26 +26,31 @@ export function MonthlyChart() {
 
   useEffect(() => {
     setIsMounted(true);
-    const now = new Date();
-    const chartData: ChartData[] = [];
+    const fetchData = async () => {
+      const now = new Date();
+      const chartData: ChartData[] = [];
 
-    // Generate last 6 months
-    for (let i = 5; i >= 0; i--) {
-      const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const monthName = date.toLocaleDateString("en-US", { month: "short" });
-      const expenses = ExpenseStorage.getByMonth(
-        date.getFullYear(),
-        date.getMonth()
-      ).reduce((sum, e) => sum + e.amount, 0);
+      // Generate last 6 months
+      for (let i = 5; i >= 0; i--) {
+        const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const monthName = date.toLocaleDateString("en-US", { month: "short" });
+        const monthExpenses = await ExpenseStorage.getByMonth(
+          date.getFullYear(),
+          date.getMonth()
+        );
+        const expenses = monthExpenses.reduce((sum, e) => sum + e.amount, 0);
 
-      chartData.push({
-        month: monthName,
-        income: 0, // TODO: Will be populated when income feature is implemented
-        expenses,
-      });
-    }
+        chartData.push({
+          month: monthName,
+          income: 0, // TODO: Will be populated when income feature is implemented
+          expenses,
+        });
+      }
 
-    setData(chartData);
+      setData(chartData);
+    };
+
+    fetchData();
   }, []);
 
   return (

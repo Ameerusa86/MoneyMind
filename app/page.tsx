@@ -15,11 +15,8 @@ import { ExpenseBreakdown } from "@/components/expense-breakdown";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import {
-  AccountStorage,
-  ExpenseStorage,
-  PayScheduleStorage,
-} from "@/lib/storage";
+import dbConnect from "@/lib/mongoose";
+import { Expense, Account, PaySchedule } from "@/lib/models";
 
 export default async function DashboardPage() {
   // Server-side auth guard
@@ -31,14 +28,51 @@ export default async function DashboardPage() {
     redirect("/login");
   }
 
-  // Compute stats server-side (localStorage-based data will be empty on server). Fallback zeros.
-  // NOTE: Existing storage abstraction uses localStorage, unavailable on server. Leave zeros until migrated.
+  const userId = session.user.id;
+
+  // Compute stats server-side using direct MongoDB access
+  await dbConnect();
+
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth();
+  const monthStart = new Date(year, month, 1);
+  const monthEnd = new Date(year, month + 1, 0);
+
+  const [expenses, accounts, schedule] = await Promise.all([
+    Expense.find({
+      userId,
+      date: { $gte: monthStart.toISOString(), $lte: monthEnd.toISOString() },
+    }).lean(),
+    Account.find({ userId }).lean(),
+    PaySchedule.findOne({ userId }).lean(),
+  ]);
+
+  const totalExpenses = expenses.reduce(
+    (sum: number, exp: any) => sum + exp.amount,
+    0
+  );
+
+  const creditCardDebt = accounts
+    .filter((acc: any) => acc.type === "credit-card")
+    .reduce((sum: number, acc: any) => sum + acc.balance, 0);
+
+  const totalLoans = accounts
+    .filter((acc: any) => acc.type === "loan")
+    .reduce((sum: number, acc: any) => sum + acc.balance, 0);
+
+  const savings = accounts
+    .filter((acc: any) => acc.type === "checking" || acc.type === "savings")
+    .reduce((sum: number, acc: any) => sum + acc.balance, 0);
+
+  const totalIncome = (schedule as any)?.typicalAmount || 0;
+
   const stats = {
-    totalIncome: 0,
-    totalExpenses: 0,
-    creditCardDebt: 0,
-    totalLoans: 0,
-    savings: 0,
+    totalIncome,
+    totalExpenses,
+    creditCardDebt,
+    totalLoans,
+    savings,
   };
 
   return (
