@@ -14,7 +14,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RecentTransactions } from "@/components/recent-transactions";
 import { MonthlyChart } from "@/components/monthly-chart";
 import { ExpenseBreakdown } from "@/components/expense-breakdown";
-import { useEffect, useState } from "react";
+import { useMemo } from "react";
 import {
   AccountStorage,
   ExpenseStorage,
@@ -22,15 +22,7 @@ import {
 } from "@/lib/storage";
 
 export default function DashboardPage() {
-  const [stats, setStats] = useState({
-    totalIncome: 0,
-    totalExpenses: 0,
-    creditCardDebt: 0,
-    totalLoans: 0,
-    savings: 0,
-  });
-
-  useEffect(() => {
+  const stats = useMemo(() => {
     const now = new Date();
     const year = now.getFullYear();
     const month = now.getMonth();
@@ -60,13 +52,13 @@ export default function DashboardPage() {
       .filter((a) => a.type === "savings")
       .reduce((sum, a) => sum + (a.balance || 0), 0);
 
-    setStats({
+    return {
       totalIncome,
       totalExpenses,
       creditCardDebt,
       totalLoans,
       savings,
-    });
+    };
   }, []);
 
   return (

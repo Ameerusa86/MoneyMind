@@ -46,7 +46,25 @@ const financeItems = [
   { name: "Loans", href: "/loans", icon: Landmark },
   { name: "Bills", href: "/bills", icon: Landmark },
   { name: "Payment Planner", href: "/payment-planner", icon: CalendarDays },
+  { name: "Reports", href: "/reports", icon: LineChartIcon },
 ];
+
+function LineChartIcon(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={props.className}
+    >
+      <path d="M3 3v18h18" />
+      <polyline points="6 15 11 10 16 13 19 8" />
+    </svg>
+  );
+}
 
 export function Navbar() {
   const pathname = usePathname();
