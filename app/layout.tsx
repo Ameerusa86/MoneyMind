@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
-import { Navbar } from "@/components/navbar";
+import { ConditionalNavbar } from "@/components/conditional-navbar";
 import { ThemeProvider } from "@/components/theme-provider";
 import { SessionMonitor } from "@/app/components/session-monitor";
 
@@ -40,7 +40,7 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <SessionMonitor />
-          <Navbar />
+          <ConditionalNavbar />
           <main className="container mx-auto px-4 py-8">{children}</main>
         </ThemeProvider>
       </body>

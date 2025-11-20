@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { authClient } from "@/lib/auth-client";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 
 /**
  * Session Monitor component
@@ -10,26 +10,36 @@ import { useRouter } from "next/navigation";
  */
 export function SessionMonitor() {
   const router = useRouter();
+  const pathname = usePathname();
 
   useEffect(() => {
-    // Check session every minute
+    // Public routes that don't need auth
+    const publicRoutes = ["/login", "/register", "/forgot-password"];
+    const isPublicRoute = publicRoutes.some((route) => pathname.startsWith(route));
+
+    // Don't check session on public routes
+    if (isPublicRoute) {
+      return;
+    }
+
+    // Check session every 2 minutes
     const interval = setInterval(async () => {
       try {
         const { data: session } = authClient.useSession.getState
           ? authClient.useSession.getState()
           : { data: null };
 
-        // If no session, redirect to login
-        if (!session) {
+        // If no session and on protected route, redirect to login
+        if (!session && !isPublicRoute) {
           router.push("/login");
         }
       } catch (error) {
         console.error("Session check error:", error);
       }
-    }, 60 * 1000); // Check every minute
+    }, 120 * 1000); // Check every 2 minutes
 
     return () => clearInterval(interval);
-  }, [router]);
+  }, [router, pathname]);
 
   return null;
 }
