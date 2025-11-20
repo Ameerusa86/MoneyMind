@@ -25,6 +25,8 @@ The following features have been fully implemented and merged:
 6. ✅ Calendar & Reminders
 7. ✅ Dashboard (Charts, breakdowns)
 8. ✅ Data Layer (storage abstraction)
+9. ✅ **Auth System** (Better-Auth with email/username + Google/GitHub OAuth)
+10. ✅ **MongoDB Integration** (Mongoose models, authenticated API routes, split auth/app databases)
 
 ---
 
@@ -32,9 +34,9 @@ The following features have been fully implemented and merged:
 
 ### Priority Features:
 
-**1. Import/Export UI** (Backend Ready)
+**1. Data Migration Utility** (URGENT - for existing localStorage users)
 **2. Settings Page** (Types Ready)
-**3. Auth Wiring** (Pages Ready)
+**3. Import/Export UI** (Backend Ready)
 
 ### Enhancement Opportunities:
 
@@ -78,22 +80,37 @@ The following features have been fully implemented and merged:
   - Settings persist and apply immediately.
   - Currency formatting respects selected currency.
 
-## Ticket: Auth Wiring
+## Ticket: Data Migration Utility ⚠️ URGENT
 
-- Branch: `feature/auth-wiring`
-- Status: 🟡 Pages ready, needs logic
-- Goals: Basic client-side authentication with route protection.
+- Branch: `feature/data-migration`
+- Status: 🔴 NOT STARTED
+- Priority: HIGH - Needed for existing users with localStorage data
+- Goals: Migrate existing localStorage data to MongoDB via API.
 - Tasks:
-  - Create auth context with login/logout/register methods.
-  - Hash passwords (bcrypt) and store users in localStorage (temp).
-  - Protect app routes with auth guard.
-  - Redirect to login if not authenticated.
-  - Add logout button to navbar.
-  - Session management with expiry.
+  - Create `/migrate` page or add to settings.
+  - Detect if localStorage has existing data.
+  - Button to migrate all data to MongoDB (accounts, bills, expenses, etc.).
+  - Show migration progress/status.
+  - Validate and transform data before API calls.
+  - Option to backup localStorage before migration.
+  - Clear localStorage after successful migration.
+  - Handle errors gracefully with rollback option.
 - Acceptance:
-  - Unauthenticated users redirected to login.
-  - Login/register flows work correctly.
-  - Session persists on page refresh.
+  - User can migrate all localStorage data to MongoDB.
+  - Data integrity maintained during migration.
+  - Clear feedback on success/failure.
+
+## Ticket: Auth Wiring ✅
+
+- Branch: `feature/auth-wiring` → MERGED
+- Status: ✅ COMPLETED
+- Implementation: Better-Auth integrated with email/username + OAuth (Google/GitHub)
+- Features:
+  - Login/Register pages with full UI.
+  - Session management with MongoDB.
+  - Protected routes with auth guards.
+  - Navbar hidden on auth pages.
+  - Session monitoring with auto-refresh.
 
 ## Ticket: Enhanced Expense Tracking
 
@@ -168,60 +185,104 @@ The following features have been fully implemented and merged:
 
 ---
 
+## Ticket: MongoDB Integration & Authentication ✅
+
+- Branch: `feature/mongodb-storage-migration` + `feature/auth-wiring` → MERGED
+- Status: ✅ COMPLETED
+- Implementation:
+  - 6 Mongoose models (Account, Bill, Expense, PaySchedule, PayPeriod, PlannedPayment)
+  - 12 authenticated API routes with full CRUD
+  - Better-Auth with MongoDB adapter
+  - Split databases: `WalletWave` (app data) + `WalletWaveAuth` (user/session data)
+  - API-based storage layer replacing localStorage
+  - Server-side auth guards on all routes
+  - Session monitoring and auto-refresh
+
+---
+
 ## Phase 1 Completed Tickets (Archive)
 
-<details>
-<summary>Click to view Phase 1 tickets</summary>
-
-## Ticket: Income & Pay Periods ✅
+### Ticket: Income & Pay Periods ✅
 
 - Branch: `feature/income-schedule`
 - Status: COMPLETED
 - Implementation: `/income` page with full CRUD, storage helpers, dashboard integration
 
-## Ticket: Accounts (Credit Cards & Loans) ✅
+### Ticket: Accounts (Credit Cards & Loans) ✅
 
 - Branch: `feature/accounts`
 - Status: COMPLETED
 - Implementation: `/accounts`, `/credit-cards`, `/loans` pages with full CRUD
 
-## Ticket: Bills & Due Dates ✅
+### Ticket: Bills & Due Dates ✅
 
 - Branch: `feature/bills-due-dates`
 - Status: COMPLETED
 - Implementation: `/bills` page with recurring bills and upcoming logic
 
-## Ticket: Payment Planner ✅
+### Ticket: Payment Planner ✅
 
 - Branch: `feature/payment-planner`
 - Status: COMPLETED
 - Implementation: `/payment-planner` page with allocation logic
 
-## Ticket: Expenses & Categories ✅
+### Ticket: Expenses & Categories ✅
 
 - Branch: `feature/expenses`
 - Status: COMPLETED
 - Implementation: `/expenses` page with categories, editing, deletion
 
-## Ticket: Calendar & Reminders ✅
+### Ticket: Calendar & Reminders ✅
 
 - Branch: `feature/calendar`
 - Status: COMPLETED
 - Implementation: `/calendar` page with month view and upcoming list
 
-## Ticket: Dashboard ✅
+### Ticket: Dashboard ✅
 
 - Branch: `feature/dashboard`
 - Status: COMPLETED
 - Implementation: All dashboard stats wired to real storage data
 
-## Ticket: Data Layer ✅
+### Ticket: Data Layer ✅
 
 - Branch: `feature/data-layer`
 - Status: COMPLETED
 - Implementation: `lib/storage.ts` with full abstraction and helpers
 
-</details>
+---
+
+---
+
+## 🔧 Recommended Improvements & Bug Fixes
+
+### Critical Issues
+
+1. **Missing Icon Files** - Add `icon-192.png` to remove 404 errors
+2. **Mongoose Index Warnings** - Remove duplicate index declarations in schemas
+3. **Chart Dimension Warnings** - Set explicit width/height on chart containers
+
+### Performance & UX
+
+4. **API Error Handling** - Add user-facing error messages and toast notifications
+5. **Loading States** - Add skeleton loaders for async data fetching
+6. **Optimistic Updates** - Update UI immediately, rollback on error
+7. **Data Validation** - Add client-side validation before API calls
+8. **Empty States** - Better UX when no data exists (illustrations, CTAs)
+
+### Security & Data
+
+9. **Rate Limiting** - Add API rate limiting to prevent abuse
+10. **Input Sanitization** - Sanitize all user inputs on API routes
+11. **HTTPS Enforcement** - Ensure production uses HTTPS only
+12. **Session Timeout** - Adjust session expiry based on usage patterns
+
+### Developer Experience
+
+13. **API Documentation** - Add OpenAPI/Swagger docs for API routes
+14. **Error Logging** - Integrate error tracking (Sentry, LogRocket)
+15. **E2E Tests** - Add Playwright tests for critical user flows
+16. **Storybook** - Component library for UI consistency
 
 ---
 
