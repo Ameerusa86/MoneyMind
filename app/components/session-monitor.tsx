@@ -15,7 +15,9 @@ export function SessionMonitor() {
   useEffect(() => {
     // Public routes that don't need auth
     const publicRoutes = ["/login", "/register", "/forgot-password"];
-    const isPublicRoute = publicRoutes.some((route) => pathname.startsWith(route));
+    const isPublicRoute = publicRoutes.some((route) =>
+      pathname.startsWith(route)
+    );
 
     // Don't check session on public routes
     if (isPublicRoute) {

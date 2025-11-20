@@ -9,10 +9,12 @@ import { Navbar } from "@/components/navbar";
  */
 export function ConditionalNavbar() {
   const pathname = usePathname();
-  
+
   // Hide navbar on auth pages
   const hideNavbarRoutes = ["/login", "/register", "/forgot-password"];
-  const shouldHideNavbar = hideNavbarRoutes.some((route) => pathname.startsWith(route));
+  const shouldHideNavbar = hideNavbarRoutes.some((route) =>
+    pathname.startsWith(route)
+  );
 
   if (shouldHideNavbar) {
     return null;
