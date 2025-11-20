@@ -137,7 +137,7 @@ export default function ReportsPage() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
+        <h1 className="text-3xl font-bold tracking-tight">
           Reports & Analytics
         </h1>
         <p className="text-gray-600 dark:text-gray-400">
@@ -147,7 +147,7 @@ export default function ReportsPage() {
       </div>
 
       <Tabs defaultValue="income-expenses" className="space-y-6">
-        <TabsList className="flex flex-nowrap gap-2 bg-transparent p-0 overflow-x-auto sm:flex-wrap sm:overflow-visible -mx-1 px-1">
+        <TabsList className="flex flex-wrap gap-2 bg-transparent p-0 mb-14 sm:mb-8">
           {[
             ["income-expenses", "Income vs Expenses"],
             ["spending", "Spending Trends"],
@@ -159,7 +159,7 @@ export default function ReportsPage() {
             <TabsTrigger
               key={val}
               value={val}
-              className="whitespace-nowrap data-[state=active]:bg-blue-600/90 data-[state=active]:text-white data-[state=inactive]:bg-gray-900/60 data-[state=inactive]:text-gray-300 px-3 py-1.5 sm:px-4 sm:py-2 rounded-md text-xs sm:text-sm font-medium shadow-sm hover:bg-blue-600/70 hover:text-white transition-colors border border-gray-700"
+              className="data-[state=active]:bg-blue-600/90 data-[state=active]:text-white data-[state=inactive]:bg-gray-900/60 data-[state=inactive]:text-gray-300 px-4 py-2 rounded-md text-sm font-medium shadow-sm hover:bg-blue-600/70 hover:text-white transition-colors border border-gray-700"
             >
               {label}
             </TabsTrigger>
@@ -167,7 +167,7 @@ export default function ReportsPage() {
         </TabsList>
 
         <TabsContent value="income-expenses" className="space-y-6">
-          <Card>
+          <Card className="mt-8 sm:mt-0">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <LineChart className="h-5 w-5 text-blue-500" /> Income vs

@@ -380,60 +380,60 @@ export default function ExpensesPage() {
           ) : (
             <ResponsiveTable>
               <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Description</TableHead>
-                  <TableHead>Category</TableHead>
-                  <TableHead>Account</TableHead>
-                  <TableHead className="text-right">Amount</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {expenses.map((expense) => {
-                  const account = expense.accountId
-                    ? AccountStorage.getById(expense.accountId)
-                    : null;
-                  return (
-                    <TableRow key={expense.id}>
-                      <TableCell className="font-medium">
-                        {formatDate(new Date(expense.date))}
-                      </TableCell>
-                      <TableCell>{expense.description}</TableCell>
-                      <TableCell>
-                        <Badge variant="secondary">
-                          {categoryLabels[expense.category]}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {account ? account.name : "-"}
-                      </TableCell>
-                      <TableCell className="text-right font-semibold text-rose-500">
-                        {formatCurrency(expense.amount)}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleEdit(expense)}
-                          >
-                            <Pencil className="h-4 w-4 text-blue-500" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleDelete(expense.id)}
-                          >
-                            <Trash2 className="h-4 w-4 text-rose-500" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Description</TableHead>
+                    <TableHead>Category</TableHead>
+                    <TableHead>Account</TableHead>
+                    <TableHead className="text-right">Amount</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {expenses.map((expense) => {
+                    const account = expense.accountId
+                      ? AccountStorage.getById(expense.accountId)
+                      : null;
+                    return (
+                      <TableRow key={expense.id}>
+                        <TableCell className="font-medium">
+                          {formatDate(new Date(expense.date))}
+                        </TableCell>
+                        <TableCell>{expense.description}</TableCell>
+                        <TableCell>
+                          <Badge variant="secondary">
+                            {categoryLabels[expense.category]}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {account ? account.name : "-"}
+                        </TableCell>
+                        <TableCell className="text-right font-semibold text-rose-500">
+                          {formatCurrency(expense.amount)}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end gap-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleEdit(expense)}
+                            >
+                              <Pencil className="h-4 w-4 text-blue-500" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDelete(expense.id)}
+                            >
+                              <Trash2 className="h-4 w-4 text-rose-500" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
               </Table>
             </ResponsiveTable>
           )}
