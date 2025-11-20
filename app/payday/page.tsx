@@ -6,16 +6,13 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  PayPeriodStorage,
+  PayScheduleStorage,
   AccountStorage,
-  PlannedPaymentStorage,
   TransactionStorage,
 } from "@/lib/storage";
 import type {
-  PayPeriod,
+  PaySchedule,
   Account,
-  PlannedPayment,
-  Transaction,
 } from "@/lib/types";
 import {
   DollarSign,
@@ -27,22 +24,21 @@ import {
 
 export default function PaydayPage() {
   const [currentStep, setCurrentStep] = useState<string>("income");
-  const [payPeriods, setPayPeriods] = useState<PayPeriod[]>([]);
+  const [paySchedules, setPaySchedules] = useState<PaySchedule[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
-  const [plannedPayments, setPlannedPayments] = useState<PlannedPayment[]>([]);
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Session state
   const [recordedDeposits, setRecordedDeposits] = useState<Set<string>>(
     new Set()
   );
+  const [depositAmounts, setDepositAmounts] = useState<Record<string, number>>(
+    {}
+  );
   const [paymentAllocations, setPaymentAllocations] = useState<
     { accountId: string; amount: number; sourceAccountId: string }[]
   >([]);
-  const [executedPayments, setExecutedPayments] = useState<Set<string>>(
-    new Set()
-  );
+  const [executedPaymentIds, setExecutedPaymentIds] = useState<string[]>([]);
 
   useEffect(() => {
     loadData();
@@ -51,18 +47,14 @@ export default function PaydayPage() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [periodsData, accountsData, paymentsData, txnsData] =
+      const [schedulesData, accountsData] =
         await Promise.all([
-          PayPeriodStorage.getAll(),
+          PayScheduleStorage.getAll(),
           AccountStorage.getAll(),
-          PlannedPaymentStorage.getAll(),
-          TransactionStorage.getAll(),
         ]);
 
-      setPayPeriods(periodsData);
+      setPaySchedules(schedulesData);
       setAccounts(accountsData);
-      setPlannedPayments(paymentsData);
-      setTransactions(txnsData);
     } catch (error) {
       console.error("Error loading payday data:", error);
     } finally {
@@ -70,42 +62,37 @@ export default function PaydayPage() {
     }
   };
 
-  const getCheckingAccounts = () => {
-    return accounts.filter((a) => a.type === "checking");
-  };
-
-  const getDebtAccounts = () => {
-    return accounts.filter((a) => a.type === "credit" || a.type === "loan");
-  };
-
-  const getUpcomingPayPeriods = () => {
-    const today = new Date();
-    return payPeriods.filter((p) => {
-      const payDate = new Date(p.payDate);
-      const daysUntil = Math.ceil(
-        (payDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
-      );
-      return daysUntil >= -7 && daysUntil <= 7; // Within 7 days
+  // Helper to format dates
+  const formatPayDate = (dateString: string): string => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
     });
   };
 
-  const handleRecordDeposit = async (period: PayPeriod) => {
+  const handleRecordDeposit = async (scheduleId: string) => {
     try {
-      // Create income_deposit transaction
+      const schedule = paySchedules.find((s) => s.id === scheduleId);
+      if (!schedule) return;
+
+      const amount = depositAmounts[scheduleId] || schedule.typicalAmount || 0;
+      const today = new Date().toISOString().split("T")[0];
+
       const transaction = await TransactionStorage.add({
         type: "income_deposit",
-        toAccountId: period.depositAccountId,
-        amount: period.actualAmount || period.expectedAmount,
-        date: period.payDate,
-        description: `Paycheck deposit - ${period.payDate}`,
+        toAccountId: schedule.depositAccountId,
+        amount,
+        date: today,
+        description: `Paycheck deposit - ${schedule.owner}`,
         metadata: {
-          payPeriodId: period.id,
+          payScheduleId: scheduleId,
         },
       });
 
       if (transaction) {
-        setRecordedDeposits(new Set([...recordedDeposits, period.id]));
-        // Reload data to show updated balances
+        setRecordedDeposits(new Set([...recordedDeposits, scheduleId]));
         await loadData();
       }
     } catch (error) {
@@ -115,9 +102,12 @@ export default function PaydayPage() {
   };
 
   const getTotalIncome = () => {
-    return getUpcomingPayPeriods()
-      .filter((p) => recordedDeposits.has(p.id))
-      .reduce((sum, p) => sum + (p.actualAmount || p.expectedAmount), 0);
+    return paySchedules
+      .filter((s) => recordedDeposits.has(s.id))
+      .reduce(
+        (sum, s) => sum + (depositAmounts[s.id] || s.typicalAmount || 0),
+        0
+      );
   };
 
   const getTotalPlannedPayments = () => {
@@ -128,9 +118,41 @@ export default function PaydayPage() {
     return total;
   };
 
-  const getCheckingBalance = (accountId: string) => {
-    const account = accounts.find((a) => a.id === accountId);
-    return account?.balance || 0;
+  const handleExecutePayments = async () => {
+    const today = new Date().toISOString().split('T')[0];
+    const newExecutedIds: string[] = [];
+
+    for (const allocation of paymentAllocations) {
+      try {
+        const transaction = await TransactionStorage.add({
+          type: "payment",
+          fromAccountId: allocation.sourceAccountId,
+          toAccountId: allocation.accountId,
+          amount: allocation.amount,
+          date: today,
+          description: `Payment to ${accounts.find(a => a.id === allocation.accountId)?.name || 'account'}`,
+        });
+
+        if (transaction) {
+          newExecutedIds.push(`${allocation.accountId}-${allocation.amount}`);
+        }
+      } catch (error) {
+        console.error("Error executing payment:", error);
+        alert(`Failed to execute payment to ${accounts.find(a => a.id === allocation.accountId)?.name}`);
+      }
+    }
+
+    setExecutedPaymentIds(newExecutedIds);
+    await loadData(); // Refresh balances
+    setCurrentStep("summary");
+  };
+
+  const handleStartNewSession = () => {
+    setRecordedDeposits(new Set());
+    setDepositAmounts({});
+    setPaymentAllocations([]);
+    setExecutedPaymentIds([]);
+    setCurrentStep("income");
   };
 
   if (loading) {
@@ -224,22 +246,23 @@ export default function PaydayPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                {getUpcomingPayPeriods().length === 0 ? (
+                {paySchedules.length === 0 ? (
                   <p className="text-muted-foreground text-center py-8">
-                    No upcoming pay periods found. Set up your income schedule
-                    first.
+                    No pay schedules found. Set up your income schedule first.
                   </p>
                 ) : (
-                  getUpcomingPayPeriods().map((period) => (
+                  paySchedules.map((schedule) => (
                     <div
-                      key={period.id}
+                      key={schedule.id}
                       className="flex items-center justify-between p-4 border rounded-lg"
                     >
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-1">
                           <Calendar className="h-4 w-4 text-muted-foreground" />
-                          <span className="font-medium">{period.payDate}</span>
-                          {recordedDeposits.has(period.id) && (
+                          <span className="font-medium">
+                            {schedule.owner || 'Income'} - {schedule.frequency}
+                          </span>
+                          {recordedDeposits.has(schedule.id) && (
                             <Badge variant="default" className="ml-2">
                               <CheckCircle2 className="h-3 w-3 mr-1" />
                               Recorded
@@ -247,29 +270,42 @@ export default function PaydayPage() {
                           )}
                         </div>
                         <p className="text-sm text-muted-foreground">
-                          Expected: $
-                          {(
-                            period.actualAmount || period.expectedAmount
-                          ).toLocaleString("en-US", {
-                            minimumFractionDigits: 2,
-                          })}
+                          Next pay date: {formatPayDate(schedule.nextPayDate)}
                         </p>
-                        {period.depositAccountId && (
+                        <div className="mt-2">
+                          <label className="text-xs text-muted-foreground">
+                            Amount:
+                          </label>
+                          <input
+                            type="number"
+                            className="ml-2 w-32 px-2 py-1 border rounded text-sm"
+                            placeholder={schedule.typicalAmount?.toString() || '0'}
+                            value={depositAmounts[schedule.id] || ''}
+                            onChange={(e) =>
+                              setDepositAmounts({
+                                ...depositAmounts,
+                                [schedule.id]: parseFloat(e.target.value) || 0,
+                              })
+                            }
+                            disabled={recordedDeposits.has(schedule.id)}
+                          />
+                        </div>
+                        {schedule.depositAccountId && (
                           <p className="text-xs text-muted-foreground mt-1">
                             Deposit to:{" "}
                             {
                               accounts.find(
-                                (a) => a.id === period.depositAccountId
+                                (a) => a.id === schedule.depositAccountId
                               )?.name
                             }
                           </p>
                         )}
                       </div>
                       <Button
-                        onClick={() => handleRecordDeposit(period)}
-                        disabled={recordedDeposits.has(period.id)}
+                        onClick={() => handleRecordDeposit(schedule.id)}
+                        disabled={recordedDeposits.has(schedule.id) || !(depositAmounts[schedule.id] || schedule.typicalAmount)}
                       >
-                        {recordedDeposits.has(period.id)
+                        {recordedDeposits.has(schedule.id)
                           ? "Recorded"
                           : "Record Deposit"}
                       </Button>
@@ -277,7 +313,7 @@ export default function PaydayPage() {
                   ))
                 )}
 
-                {getUpcomingPayPeriods().length > 0 && (
+                {paySchedules.length > 0 && (
                   <div className="pt-4 border-t">
                     <div className="flex items-center justify-between mb-4">
                       <span className="text-lg font-semibold">
@@ -543,48 +579,194 @@ export default function PaydayPage() {
             </Card>
           </TabsContent>
 
-          {/* Step 3: Execute (placeholder) */}
+          {/* Step 3: Execute Payments */}
           <TabsContent value="execute">
             <Card>
               <CardHeader>
-                <CardTitle>Execute Payments</CardTitle>
+                <CardTitle className="flex items-center gap-2">
+                  <CheckCircle2 className="h-5 w-5" />
+                  Execute Payments
+                </CardTitle>
               </CardHeader>
-              <CardContent>
-                <p className="text-muted-foreground">
-                  Step 3 implementation coming next...
-                </p>
-                <div className="flex gap-2 mt-4">
+              <CardContent className="space-y-6">
+                <div className="space-y-4">
+                  <p className="text-muted-foreground">
+                    Review your payments before executing. This will create transactions and update account balances.
+                  </p>
+
+                  {/* Payment List */}
+                  {paymentAllocations.length > 0 && (
+                    <div className="border rounded-lg divide-y">
+                      {paymentAllocations.map((allocation, index) => {
+                        const account = accounts.find(a => a.id === allocation.accountId);
+                        const sourceAccount = accounts.find(a => a.id === allocation.sourceAccountId);
+                        return (
+                          <div key={index} className="p-4">
+                            <div className="flex justify-between items-start">
+                              <div>
+                                <p className="font-medium">{account?.name}</p>
+                                <p className="text-sm text-muted-foreground">
+                                  From: {sourceAccount?.name}
+                                </p>
+                              </div>
+                              <p className="text-lg font-semibold">
+                                ${allocation.amount.toFixed(2)}
+                              </p>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Summary */}
+                  <div className="bg-muted p-4 rounded-lg space-y-2">
+                    <div className="flex justify-between">
+                      <span>Total Payments:</span>
+                      <span className="font-semibold">${getTotalPlannedPayments().toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Income Recorded:</span>
+                      <span className="font-semibold text-green-600">${getTotalIncome().toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between pt-2 border-t">
+                      <span className="font-semibold">Net Change:</span>
+                      <span className={`font-bold ${getTotalIncome() - getTotalPlannedPayments() >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        ${(getTotalIncome() - getTotalPlannedPayments()).toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Navigation */}
+                <div className="flex gap-2">
                   <Button
                     variant="outline"
                     onClick={() => setCurrentStep("review")}
                   >
                     Back
                   </Button>
-                  <Button onClick={() => setCurrentStep("summary")}>
-                    Continue
+                  <Button 
+                    onClick={handleExecutePayments}
+                    disabled={paymentAllocations.length === 0}
+                    className="flex-1"
+                  >
+                    Execute All Payments
+                    <CheckCircle2 className="ml-2 h-4 w-4" />
                   </Button>
                 </div>
               </CardContent>
             </Card>
           </TabsContent>
 
-          {/* Step 4: Summary (placeholder) */}
+          {/* Step 4: Summary */}
           <TabsContent value="summary">
             <Card>
               <CardHeader>
-                <CardTitle>Session Summary</CardTitle>
+                <CardTitle className="flex items-center gap-2">
+                  <CheckCircle2 className="h-5 w-5 text-green-600" />
+                  Session Complete
+                </CardTitle>
               </CardHeader>
-              <CardContent>
-                <p className="text-muted-foreground">
-                  Step 4 implementation coming next...
-                </p>
-                <Button
-                  variant="outline"
-                  onClick={() => setCurrentStep("income")}
-                  className="mt-4"
-                >
-                  Start New Session
-                </Button>
+              <CardContent className="space-y-6">
+                {/* Success message */}
+                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                  <p className="text-green-800 font-medium">
+                    Payday session completed successfully!
+                  </p>
+                  <p className="text-sm text-green-700 mt-1">
+                    All income deposits and payments have been recorded.
+                  </p>
+                </div>
+
+                {/* Income Summary */}
+                <div>
+                  <h3 className="font-semibold mb-3 flex items-center gap-2">
+                    <DollarSign className="h-4 w-4" />
+                    Income Recorded
+                  </h3>
+                  <div className="border rounded-lg divide-y">
+                    {paySchedules
+                      .filter(s => recordedDeposits.has(s.id))
+                      .map(schedule => {
+                        const amount = depositAmounts[schedule.id] || schedule.typicalAmount || 0;
+                        const account = accounts.find(a => a.id === schedule.depositAccountId);
+                        return (
+                          <div key={schedule.id} className="p-3 flex justify-between">
+                            <div>
+                              <p className="font-medium">{schedule.owner || 'Income'}</p>
+                              <p className="text-sm text-muted-foreground">To: {account?.name}</p>
+                            </div>
+                            <p className="font-semibold text-green-600">
+                              ${amount.toFixed(2)}
+                            </p>
+                          </div>
+                        );
+                      })}
+                  </div>
+                  <div className="mt-2 p-3 bg-muted rounded-lg flex justify-between">
+                    <span className="font-semibold">Total Income:</span>
+                    <span className="font-bold text-green-600">${getTotalIncome().toFixed(2)}</span>
+                  </div>
+                </div>
+
+                {/* Payments Summary */}
+                {executedPaymentIds.length > 0 && (
+                  <div>
+                    <h3 className="font-semibold mb-3 flex items-center gap-2">
+                      <CreditCard className="h-4 w-4" />
+                      Payments Executed
+                    </h3>
+                    <div className="border rounded-lg divide-y">
+                      {paymentAllocations.map((allocation, index) => {
+                        const account = accounts.find(a => a.id === allocation.accountId);
+                        const sourceAccount = accounts.find(a => a.id === allocation.sourceAccountId);
+                        return (
+                          <div key={index} className="p-3 flex justify-between">
+                            <div>
+                              <p className="font-medium">{account?.name}</p>
+                              <p className="text-sm text-muted-foreground">From: {sourceAccount?.name}</p>
+                            </div>
+                            <p className="font-semibold">${allocation.amount.toFixed(2)}</p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div className="mt-2 p-3 bg-muted rounded-lg flex justify-between">
+                      <span className="font-semibold">Total Payments:</span>
+                      <span className="font-bold">${getTotalPlannedPayments().toFixed(2)}</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Net Summary */}
+                <div className="border-t pt-4">
+                  <div className="bg-primary/10 p-4 rounded-lg">
+                    <div className="flex justify-between items-center">
+                      <span className="text-lg font-semibold">Net Impact:</span>
+                      <span className={`text-2xl font-bold ${getTotalIncome() - getTotalPlannedPayments() >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        ${(getTotalIncome() - getTotalPlannedPayments()).toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Actions */}
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={handleStartNewSession}
+                    className="flex-1"
+                  >
+                    Start New Session
+                  </Button>
+                  <Button
+                    onClick={() => window.location.href = '/'}
+                    className="flex-1"
+                  >
+                    Go to Dashboard
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           </TabsContent>

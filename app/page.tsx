@@ -39,19 +39,23 @@ export default async function DashboardPage() {
   const monthStart = new Date(year, month, 1);
   const monthEnd = new Date(year, month + 1, 0);
 
-  const [expenses, accountsRaw, schedules, allTransactions] = await Promise.all([
-    Expense.find({
-      userId,
-      date: { $gte: monthStart.toISOString(), $lte: monthEnd.toISOString() },
-    }).lean(),
-    Account.find({ userId }).lean(),
-    PaySchedule.find({ userId }).lean(),
-    // Import Transaction model
-    (async () => {
-      const { default: Transaction } = await import("@/lib/models/Transaction");
-      return Transaction.find({ userId }).lean();
-    })(),
-  ]);
+  const [expenses, accountsRaw, schedules, allTransactions] = await Promise.all(
+    [
+      Expense.find({
+        userId,
+        date: { $gte: monthStart.toISOString(), $lte: monthEnd.toISOString() },
+      }).lean(),
+      Account.find({ userId }).lean(),
+      PaySchedule.find({ userId }).lean(),
+      // Import Transaction model
+      (async () => {
+        const { default: Transaction } = await import(
+          "@/lib/models/Transaction"
+        );
+        return Transaction.find({ userId }).lean();
+      })(),
+    ]
+  );
 
   // Import balance calculation
   const { calculateAccountBalances } = await import("@/lib/balance");
