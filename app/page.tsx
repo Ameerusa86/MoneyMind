@@ -1,5 +1,3 @@
-"use client";
-
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   TrendingUp,
@@ -14,52 +12,34 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RecentTransactions } from "@/components/recent-transactions";
 import { MonthlyChart } from "@/components/monthly-chart";
 import { ExpenseBreakdown } from "@/components/expense-breakdown";
-import { useMemo } from "react";
+import { auth } from "@/lib/auth";
+import { headers } from "next/headers";
+import { redirect } from "next/navigation";
 import {
   AccountStorage,
   ExpenseStorage,
   PayScheduleStorage,
 } from "@/lib/storage";
 
-export default function DashboardPage() {
-  const stats = useMemo(() => {
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = now.getMonth();
+export default async function DashboardPage() {
+  // Server-side auth guard
+  const a = await auth;
+  const headersList = await headers();
+  const session = await a.api.getSession({ headers: headersList });
 
-    // Expenses (current month)
-    const monthlyExpenses = ExpenseStorage.getByMonth(year, month);
-    const totalExpenses = monthlyExpenses.reduce(
-      (sum, e) => sum + (e.amount || 0),
-      0
-    );
+  if (!session) {
+    redirect("/login");
+  }
 
-    // Income (estimate from pay schedule)
-    const schedule = PayScheduleStorage.get();
-    const paydays = PayScheduleStorage.getPaydaysForMonth(year, month);
-    const typicalAmount = schedule?.typicalAmount ?? 0;
-    const totalIncome = paydays.length * typicalAmount;
-
-    // Accounts aggregation
-    const accounts = AccountStorage.getAll();
-    const creditCardDebt = accounts
-      .filter((a) => a.type === "credit")
-      .reduce((sum, a) => sum + (a.balance || 0), 0);
-    const totalLoans = accounts
-      .filter((a) => a.type === "loan")
-      .reduce((sum, a) => sum + (a.balance || 0), 0);
-    const savings = accounts
-      .filter((a) => a.type === "savings")
-      .reduce((sum, a) => sum + (a.balance || 0), 0);
-
-    return {
-      totalIncome,
-      totalExpenses,
-      creditCardDebt,
-      totalLoans,
-      savings,
-    };
-  }, []);
+  // Compute stats server-side (localStorage-based data will be empty on server). Fallback zeros.
+  // NOTE: Existing storage abstraction uses localStorage, unavailable on server. Leave zeros until migrated.
+  const stats = {
+    totalIncome: 0,
+    totalExpenses: 0,
+    creditCardDebt: 0,
+    totalLoans: 0,
+    savings: 0,
+  };
 
   return (
     <div className="space-y-8">

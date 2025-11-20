@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { Navbar } from "@/components/navbar";
 import { ThemeProvider } from "@/components/theme-provider";
+import { SessionMonitor } from "@/app/components/session-monitor";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -37,6 +38,7 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
+          <SessionMonitor />
           <Navbar />
           <main className="container mx-auto px-4 py-8">{children}</main>
         </ThemeProvider>

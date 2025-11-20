@@ -3,16 +3,46 @@
 import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { authClient } from "@/lib/auth-client";
 
 export default function LoginPage() {
-  const [email, setEmail] = useState("");
+  const router = useRouter();
+  const [identifier, setIdentifier] = useState(""); // email or username
   const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log("Login submitted:", { email, password });
+    setError(null);
+    setLoading(true);
+    try {
+      const isEmail = identifier.includes("@");
+      if (isEmail) {
+        const { error } = await authClient.signIn.email(
+          { email: identifier, password, callbackURL: "/" },
+          {
+            onSuccess: () => router.push("/"),
+          }
+        );
+        if (error) setError(error.message);
+      } else {
+        const { error } = await authClient.signIn.username(
+          { username: identifier, password },
+          {
+            onSuccess: () => router.push("/"),
+          }
+        );
+        if (error) setError(error.message);
+      }
+    } catch (err: any) {
+      setError(err?.message ?? "Failed to sign in");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -55,17 +85,17 @@ export default function LoginPage() {
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
                 <label
-                  htmlFor="email"
+                  htmlFor="identifier"
                   className="text-sm font-medium text-gray-300"
                 >
-                  Email
+                  Email or Username
                 </label>
                 <Input
-                  id="email"
-                  type="email"
-                  placeholder="name@example.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  id="identifier"
+                  type="text"
+                  placeholder="name@example.com or username"
+                  value={identifier}
+                  onChange={(e) => setIdentifier(e.target.value)}
                   required
                   className="w-full"
                 />
@@ -95,11 +125,13 @@ export default function LoginPage() {
                   className="w-full"
                 />
               </div>
+              {error ? <p className="text-sm text-red-400">{error}</p> : null}
               <Button
                 type="submit"
+                disabled={loading}
                 className="w-full bg-purple-600 hover:bg-purple-500 text-white"
               >
-                Sign In
+                {loading ? "Signing in..." : "Sign In"}
               </Button>
             </form>
 
@@ -119,6 +151,12 @@ export default function LoginPage() {
                 type="button"
                 variant="outline"
                 className="w-full border-gray-800 bg-gray-900 text-gray-200 hover:bg-gray-800"
+                onClick={() =>
+                  authClient.signIn.social({
+                    provider: "google",
+                    callbackURL: "/",
+                  })
+                }
               >
                 {/* Google */}
                 <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24">
@@ -145,16 +183,23 @@ export default function LoginPage() {
                 type="button"
                 variant="outline"
                 className="w-full border-gray-800 bg-gray-900 text-gray-200 hover:bg-gray-800"
+                onClick={() =>
+                  authClient.signIn.social({
+                    provider: "github",
+                    callbackURL: "/",
+                  })
+                }
               >
-                {/* Apple */}
+                {/* GitHub */}
                 <svg
-                  className="w-5 h-5 mr-2"
                   viewBox="0 0 24 24"
+                  className="w-5 h-5 mr-2"
                   fill="currentColor"
+                  aria-hidden
                 >
-                  <path d="M16.365 1.43c0 1.14-.466 2.23-1.22 3.04-.79.85-2.09 1.5-3.19 1.43-.15-1.1.47-2.27 1.23-3.07.79-.86 2.19-1.49 3.18-1.4zm3.62 16.01c-.68 1.53-1.5 3.04-2.7 3.05-1.2.01-1.59-.79-2.96-.79-1.37 0-1.82.77-3 .8-1.18.03-2.08-1.54-2.77-3.06-1.51-3.25-1.67-5.61-.74-7.2.83-1.42 2.3-2.3 3.9-2.31 1.22-.02 2.37.83 2.96.83.59 0 1.95-1.03 3.29-.88.56.02 2.16.23 3.19 1.77-.08.05-1.9 1.12-1.87 3.33.02 2.64 2.3 3.52 2.33 3.54-.02.07-.19.64-.33.92z" />
+                  <path d="M12 .5a11.5 11.5 0 0 0-3.63 22.41c.57.1.78-.25.78-.55v-2.14c-3.17.69-3.84-1.53-3.84-1.53-.52-1.33-1.27-1.68-1.27-1.68-1.04-.71.08-.7.08-.7 1.15.08 1.76 1.18 1.76 1.18 1.02 1.75 2.67 1.24 3.32.95.1-.75.4-1.24.73-1.53-2.53-.29-5.2-1.27-5.2-5.66 0-1.25.45-2.27 1.18-3.07-.12-.29-.51-1.46.11-3.04 0 0 .96-.31 3.15 1.17a10.9 10.9 0 0 1 5.74 0c2.19-1.48 3.15-1.17 3.15-1.17.62 1.58.23 2.75.11 3.04.73.8 1.18 1.82 1.18 3.07 0 4.4-2.67 5.37-5.22 5.65.41.35.77 1.04.77 2.1v3.12c0 .31.2.66.79.55A11.5 11.5 0 0 0 12 .5Z" />
                 </svg>
-                Apple
+                GitHub
               </Button>
             </div>
           </div>

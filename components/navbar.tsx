@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import {
   LayoutDashboard,
@@ -17,8 +17,11 @@ import {
   Waves,
   BarChart3,
   ChevronDown,
+  LogOut,
+  Settings,
 } from "lucide-react";
 import { useState } from "react";
+import Image from "next/image";
 import {
   Sheet,
   SheetContent,
@@ -34,6 +37,7 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
+import { authClient } from "@/lib/auth-client";
 
 type NavItem = { name: string; href: string; icon: any };
 
@@ -49,9 +53,16 @@ const financeItems: NavItem[] = [
 
 export function Navbar() {
   const pathname = usePathname();
+  const router = useRouter();
   const [open, setOpen] = useState(false);
+  const { data: session, isPending } = authClient.useSession();
   const isActive = (href: string) => pathname === href;
   const isFinanceActive = financeItems.some((item) => pathname === item.href);
+
+  const handleSignOut = async () => {
+    await authClient.signOut();
+    router.push("/login");
+  };
 
   return (
     <nav className="sticky top-0 z-40 border-b bg-gray-950/95 backdrop-blur-md border-gray-800">
@@ -152,20 +163,77 @@ export function Navbar() {
 
           {/* Right Section */}
           <div className="hidden md:flex items-center gap-3">
-            <Link
-              href="/login"
-              className="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors text-gray-300 hover:text-white"
-            >
-              <LogIn className="h-4 w-4" />
-              Login
-            </Link>
-            <Link
-              href="/register"
-              className="flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all bg-linear-to-r from-blue-600 to-purple-600 text-white hover:from-blue-500 hover:to-purple-500 hover:shadow-lg hover:shadow-purple-500/25"
-            >
-              <User className="h-4 w-4" />
-              Sign Up
-            </Link>
+            {isPending ? (
+              <div className="h-9 w-9 rounded-full bg-gray-800 animate-pulse" />
+            ) : session ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger className="outline-none">
+                  <div className="flex items-center gap-2 px-2 py-1 rounded-md hover:bg-gray-800 transition-colors">
+                    {session.user.image ? (
+                      <Image
+                        src={session.user.image}
+                        alt={session.user.name || "User"}
+                        width={32}
+                        height={32}
+                        className="rounded-full"
+                      />
+                    ) : (
+                      <div className="h-8 w-8 rounded-full bg-linear-to-r from-blue-600 to-purple-600 flex items-center justify-center text-white text-sm font-semibold">
+                        {session.user.name?.charAt(0).toUpperCase() || "U"}
+                      </div>
+                    )}
+                    <ChevronDown className="h-3 w-3 text-gray-400" />
+                  </div>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  align="end"
+                  className="w-56 bg-gray-900 border-gray-800"
+                >
+                  <div className="px-3 py-2 border-b border-gray-800">
+                    <p className="text-sm font-medium text-white">
+                      {session.user.name}
+                    </p>
+                    <p className="text-xs text-gray-400">
+                      {session.user.email}
+                    </p>
+                  </div>
+                  <DropdownMenuItem asChild>
+                    <Link
+                      href="/profile"
+                      className="flex items-center gap-3 px-3 py-2 cursor-pointer text-gray-300 hover:bg-gray-800 hover:text-white"
+                    >
+                      <User className="h-4 w-4" />
+                      Profile
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator className="bg-gray-800" />
+                  <DropdownMenuItem
+                    onClick={handleSignOut}
+                    className="flex items-center gap-3 px-3 py-2 cursor-pointer text-red-400 hover:bg-gray-800 hover:text-red-300"
+                  >
+                    <LogOut className="h-4 w-4" />
+                    Sign Out
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : (
+              <>
+                <Link
+                  href="/login"
+                  className="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors text-gray-300 hover:text-white"
+                >
+                  <LogIn className="h-4 w-4" />
+                  Login
+                </Link>
+                <Link
+                  href="/register"
+                  className="flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all bg-linear-to-r from-blue-600 to-purple-600 text-white hover:from-blue-500 hover:to-purple-500 hover:shadow-lg hover:shadow-purple-500/25"
+                >
+                  <User className="h-4 w-4" />
+                  Sign Up
+                </Link>
+              </>
+            )}
           </div>
 
           {/* Mobile Menu */}
@@ -261,24 +329,79 @@ export function Navbar() {
                   </SheetClose>
 
                   <div className="border-t border-gray-800 pt-4 mt-4 space-y-2">
-                    <SheetClose asChild>
-                      <Link
-                        href="/login"
-                        className="flex items-center gap-3 px-4 py-3 rounded-md text-base font-medium transition-colors text-gray-300 hover:bg-gray-800 hover:text-white"
-                      >
-                        <LogIn className="h-5 w-5" />
-                        Login
-                      </Link>
-                    </SheetClose>
-                    <SheetClose asChild>
-                      <Link
-                        href="/register"
-                        className="flex items-center gap-3 px-4 py-3 rounded-md text-base font-medium transition-colors bg-linear-to-r from-blue-600 to-purple-600 text-white hover:from-blue-500 hover:to-purple-500"
-                      >
-                        <User className="h-5 w-5" />
-                        Sign Up
-                      </Link>
-                    </SheetClose>
+                    {isPending ? (
+                      <div className="flex items-center gap-3 px-4 py-3">
+                        <div className="h-8 w-8 rounded-full bg-gray-800 animate-pulse" />
+                        <div className="h-4 w-24 bg-gray-800 rounded animate-pulse" />
+                      </div>
+                    ) : session ? (
+                      <>
+                        <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-800 mb-2">
+                          {session.user.image ? (
+                            <Image
+                              src={session.user.image}
+                              alt={session.user.name || "User"}
+                              width={40}
+                              height={40}
+                              className="rounded-full"
+                            />
+                          ) : (
+                            <div className="h-10 w-10 rounded-full bg-linear-to-r from-blue-600 to-purple-600 flex items-center justify-center text-white text-base font-semibold">
+                              {session.user.name?.charAt(0).toUpperCase() ||
+                                "U"}
+                            </div>
+                          )}
+                          <div>
+                            <p className="text-sm font-medium text-white">
+                              {session.user.name}
+                            </p>
+                            <p className="text-xs text-gray-400">
+                              {session.user.email}
+                            </p>
+                          </div>
+                        </div>
+                        <SheetClose asChild>
+                          <Link
+                            href="/profile"
+                            className="flex items-center gap-3 px-4 py-3 rounded-md text-base font-medium transition-colors text-gray-300 hover:bg-gray-800 hover:text-white"
+                          >
+                            <User className="h-5 w-5" />
+                            Profile
+                          </Link>
+                        </SheetClose>
+                        <button
+                          onClick={() => {
+                            setOpen(false);
+                            handleSignOut();
+                          }}
+                          className="w-full flex items-center gap-3 px-4 py-3 rounded-md text-base font-medium transition-colors text-red-400 hover:bg-gray-800 hover:text-red-300"
+                        >
+                          <LogOut className="h-5 w-5" />
+                          Sign Out
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <SheetClose asChild>
+                          <Link
+                            href="/login"
+                            className="flex items-center gap-3 px-4 py-3 rounded-md text-base font-medium transition-colors text-gray-300 hover:bg-gray-800 hover:text-white"
+                          >
+                            <LogIn className="h-5 w-5" />
+                            Login
+                          </Link>
+                        </SheetClose>
+                        <SheetClose asChild>
+                          <Link
+                            href="/register"
+                            className="flex items-center gap-3 px-4 py-3 rounded-md text-base font-medium transition-colors bg-linear-to-r from-blue-600 to-purple-600 text-white hover:from-blue-500 hover:to-purple-500"
+                          >
+                            <User className="h-5 w-5" />
+                            Sign Up
+                          </Link>
+                        </SheetClose>
+                      </>
+                    )}
                   </div>
                 </div>
               </SheetContent>
