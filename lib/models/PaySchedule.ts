@@ -6,6 +6,7 @@ export interface IPaySchedule extends Document {
   frequency: PayFrequency;
   nextPayDate: string;
   typicalAmount: number;
+  depositAccountId?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -20,6 +21,7 @@ const PayScheduleSchema = new Schema<IPaySchedule>(
     },
     nextPayDate: { type: String, required: true },
     typicalAmount: { type: Number, required: true },
+    depositAccountId: { type: String },
   },
   { timestamps: true }
 );

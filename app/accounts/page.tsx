@@ -224,7 +224,9 @@ export default function AccountsPage() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <label className="text-sm font-medium">
-                      Current Balance ($) *
+                      {type === "checking" || type === "savings"
+                        ? "Account Balance ($) *"
+                        : "Current Balance ($) *"}
                     </label>
                     <Input
                       type="number"
@@ -233,6 +235,16 @@ export default function AccountsPage() {
                       onChange={(e) => setBalance(e.target.value)}
                       placeholder="0.00"
                     />
+                    {(type === "checking" || type === "savings") && (
+                      <p className="text-xs text-muted-foreground">
+                        Your available balance in this account
+                      </p>
+                    )}
+                    {(type === "credit" || type === "loan") && (
+                      <p className="text-xs text-muted-foreground">
+                        Amount you currently owe
+                      </p>
+                    )}
                   </div>
 
                   {(type === "credit" || type === "loan") && (

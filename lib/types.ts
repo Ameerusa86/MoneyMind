@@ -7,6 +7,7 @@ export interface PaySchedule {
   frequency: PayFrequency;
   nextPayDate: string; // ISO date string
   typicalAmount: number;
+  depositAccountId?: string; // Checking/Savings account where income is deposited
   createdAt: string;
   updatedAt: string;
 }
@@ -18,6 +19,7 @@ export interface PayPeriod {
   payDate: string; // ISO date string
   expectedAmount: number;
   actualAmount?: number;
+  depositAccountId?: string; // Checking/Savings account where this paycheck was deposited
 }
 
 export type AccountType = "credit" | "loan" | "checking" | "savings";

@@ -17,30 +17,40 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { PayScheduleStorage } from "@/lib/storage";
-import { PaySchedule, PayFrequency } from "@/lib/types";
+import { PayScheduleStorage, AccountStorage } from "@/lib/storage";
+import { PaySchedule, PayFrequency, Account } from "@/lib/types";
 
 export default function IncomePage() {
   const [frequency, setFrequency] = useState<PayFrequency>("bi-weekly");
   const [nextPayDate, setNextPayDate] = useState("");
   const [amount, setAmount] = useState("");
+  const [depositAccountId, setDepositAccountId] = useState("none");
   const [schedule, setSchedule] = useState<PaySchedule | null>(null);
+  const [accounts, setAccounts] = useState<Account[]>([]);
   const [upcomingPayDates, setUpcomingPayDates] = useState<string[]>([]);
   const [isSaved, setIsSaved] = useState(false);
 
   useEffect(() => {
-    // Load existing schedule
-    const loadSchedule = async () => {
+    // Load existing schedule and accounts
+    const loadData = async () => {
       const saved = await PayScheduleStorage.get();
       if (saved) {
         setSchedule(saved);
         setFrequency(saved.frequency);
         setNextPayDate(saved.nextPayDate.split("T")[0]);
         setAmount(saved.typicalAmount.toString());
+        setDepositAccountId(saved.depositAccountId || "none");
         calculateUpcomingPayDates(saved.nextPayDate, saved.frequency);
       }
+
+      // Load checking and savings accounts
+      const allAccounts = await AccountStorage.getAll();
+      const bankAccounts = allAccounts.filter(
+        (acc) => acc.type === "checking" || acc.type === "savings"
+      );
+      setAccounts(bankAccounts);
     };
-    loadSchedule();
+    loadData();
   }, []);
 
   const calculateUpcomingPayDates = (
@@ -92,6 +102,8 @@ export default function IncomePage() {
       frequency,
       nextPayDate: new Date(nextPayDate).toISOString(),
       typicalAmount: parseFloat(amount),
+      depositAccountId:
+        depositAccountId !== "none" ? depositAccountId : undefined,
     };
 
     const newSchedule = await PayScheduleStorage.set(scheduleData);
@@ -168,6 +180,37 @@ export default function IncomePage() {
               />
             </div>
 
+            <div className="space-y-2">
+              <label className="text-sm font-medium">
+                Deposit Account (Optional)
+              </label>
+              <Select
+                value={depositAccountId}
+                onValueChange={setDepositAccountId}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select checking/savings account" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">
+                    None (Don&apos;t link to account)
+                  </SelectItem>
+                  {accounts.map((account) => (
+                    <SelectItem key={account.id} value={account.id}>
+                      {account.name} ({account.type}) - $
+                      {account.balance.toLocaleString("en-US", {
+                        minimumFractionDigits: 2,
+                      })}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Link your paycheck to a checking or savings account to track
+                your income deposits
+              </p>
+            </div>
+
             <Button onClick={handleSave} className="w-full">
               {isSaved ? "Saved ✓" : "Save Schedule"}
             </Button>
@@ -193,7 +236,7 @@ export default function IncomePage() {
                 ))}
               </ul>
               {schedule && (
-                <div className="mt-4 pt-4 border-t">
+                <div className="mt-4 pt-4 border-t space-y-2">
                   <div className="flex justify-between items-center">
                     <span className="font-semibold">Expected Amount:</span>
                     <span className="text-lg font-bold text-green-600">
@@ -203,6 +246,18 @@ export default function IncomePage() {
                       })}
                     </span>
                   </div>
+                  {schedule.depositAccountId && (
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="text-muted-foreground">
+                        Deposits to:
+                      </span>
+                      <span className="font-medium">
+                        {accounts.find(
+                          (a) => a.id === schedule.depositAccountId
+                        )?.name || "Unknown Account"}
+                      </span>
+                    </div>
+                  )}
                 </div>
               )}
             </CardContent>

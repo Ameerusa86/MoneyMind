@@ -7,6 +7,7 @@ export interface IPayPeriod extends Document {
   payDate: string;
   expectedAmount: number;
   actualAmount?: number;
+  depositAccountId?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -19,6 +20,7 @@ const PayPeriodSchema = new Schema<IPayPeriod>(
     payDate: { type: String, required: true },
     expectedAmount: { type: Number, required: true },
     actualAmount: { type: Number },
+    depositAccountId: { type: String },
   },
   { timestamps: true }
 );
