@@ -65,8 +65,19 @@ export default function LoginPage() {
   };
 
   const handleDemoLogin = () => {
-    setIdentifier("test@test.com");
-    setPassword("Test123456");
+    setError(null);
+    setLoading(true);
+    
+    const email = "test@test.com";
+    const pwd = "Test123456";
+    
+    if (validateDemoCredentials(email, pwd)) {
+      createDemoSession();
+      router.push("/");
+    } else {
+      setError("Demo account unavailable");
+      setLoading(false);
+    }
   };
 
   return (
