@@ -100,8 +100,9 @@ export default async function DashboardPage() {
     0
   );
 
+  // Credit card debt: sum of all 'credit' type accounts (real-time)
   const creditCardDebt = accounts
-    .filter((acc: any) => acc.type === "credit-card")
+    .filter((acc: any) => acc.type === "credit")
     .reduce((sum: number, acc: any) => {
       const calculatedBalance = balanceMap.get(acc.id) ?? acc.balance;
       return sum + calculatedBalance;
@@ -114,8 +115,17 @@ export default async function DashboardPage() {
       return sum + calculatedBalance;
     }, 0);
 
+  // Savings: only savings accounts (exclude checking for clarity)
   const savings = accounts
-    .filter((acc: any) => acc.type === "checking" || acc.type === "savings")
+    .filter((acc: any) => acc.type === "savings")
+    .reduce((sum: number, acc: any) => {
+      const calculatedBalance = balanceMap.get(acc.id) ?? acc.balance;
+      return sum + calculatedBalance;
+    }, 0);
+
+  // Checking cash: liquid funds in checking accounts
+  const checkingCash = accounts
+    .filter((acc: any) => acc.type === "checking")
     .reduce((sum: number, acc: any) => {
       const calculatedBalance = balanceMap.get(acc.id) ?? acc.balance;
       return sum + calculatedBalance;
@@ -138,6 +148,7 @@ export default async function DashboardPage() {
     creditCardDebt,
     totalLoans,
     savings,
+    checkingCash,
   };
 
   return (
@@ -246,11 +257,25 @@ export default async function DashboardPage() {
               {formatCurrency(stats.savings)}
             </div>
             <p className="text-xs text-gray-600 dark:text-gray-400">
-              Total saved
+              Savings accounts
             </p>
             <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-1">
               ● Real-time balance
             </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Checking Cash</CardTitle>
+            <DollarSign className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
+              {formatCurrency(stats.checkingCash)}
+            </div>
+            <p className="text-xs text-gray-600 dark:text-gray-400">Checking accounts</p>
+            <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-1">● Real-time balance</p>
           </CardContent>
         </Card>
       </div>
