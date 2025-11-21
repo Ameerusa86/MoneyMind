@@ -7,7 +7,7 @@ export interface ITransaction extends Document {
   fromAccountId?: string;
   toAccountId?: string;
   amount: number;
-  date: string;
+  date: string; // store as "YYYY-MM-DD" string
   description?: string;
   category?: string;
   metadata?: Record<string, any>;
@@ -17,7 +17,8 @@ export interface ITransaction extends Document {
 
 const TransactionSchema = new Schema<ITransaction>(
   {
-    userId: { type: String, required: true, index: true },
+    // userId indexed via compound indexes below; avoid duplicate single-field index
+    userId: { type: String, required: true },
     type: {
       type: String,
       enum: ["income_deposit", "payment", "expense", "transfer", "adjustment"],

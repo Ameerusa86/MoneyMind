@@ -1,4 +1,4 @@
-// Core domain types for WalletWave
+// Core domain types for MoneyMind
 
 export type PayFrequency = "weekly" | "bi-weekly" | "semi-monthly" | "monthly";
 

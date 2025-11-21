@@ -58,8 +58,8 @@ export function MonthlyChart() {
       <CardHeader>
         <CardTitle>Income vs Expenses (Last 6 Months)</CardTitle>
       </CardHeader>
-      <CardContent className="h-[300px] sm:h-[340px]">
-        <ResponsiveContainer width="100%" height="100%">
+      <CardContent className="h-[300px] sm:h-[340px]" style={{ minWidth: 0 }}>
+        <ResponsiveContainer width="100%" height="100%" minWidth={0}>
           <BarChart data={isMounted ? data : []}>
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis dataKey="month" />

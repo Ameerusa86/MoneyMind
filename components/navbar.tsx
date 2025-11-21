@@ -19,6 +19,7 @@ import {
   ChevronDown,
   LogOut,
   Settings,
+  Upload,
 } from "lucide-react";
 import { useState } from "react";
 import Image from "next/image";
@@ -76,7 +77,7 @@ export function Navbar() {
           >
             <Waves className="h-7 w-7 text-blue-400" />
             <span className="text-xl font-bold bg-linear-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
-              WalletWave
+              MoneyMind
             </span>
           </Link>
 
@@ -132,6 +133,21 @@ export function Navbar() {
                     </DropdownMenuItem>
                   );
                 })}
+                <DropdownMenuSeparator className="bg-gray-800" />
+                <DropdownMenuItem asChild>
+                  <Link
+                    href="/import"
+                    className={cn(
+                      "flex items-center gap-3 px-3 py-2 cursor-pointer",
+                      isActive("/import")
+                        ? "bg-blue-600/20 text-blue-400"
+                        : "text-gray-300 hover:bg-gray-800 hover:text-white"
+                    )}
+                  >
+                    <Upload className="h-4 w-4" />
+                    Import CSV
+                  </Link>
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
 
@@ -255,7 +271,7 @@ export function Navbar() {
                 <SheetHeader>
                   <SheetTitle className="flex items-center gap-2 text-gray-100">
                     <Waves className="h-5 w-5 text-blue-400" />
-                    WalletWave
+                    MoneyMind
                   </SheetTitle>
                 </SheetHeader>
                 <div className="flex flex-col gap-4 mt-8">

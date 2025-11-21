@@ -1,4 +1,4 @@
-# 💰 WalletWave
+# 💰 MoneyMind
 
 A modern, full-stack personal finance management application built with Next.js 16, TypeScript, and MongoDB. Track your income, expenses, bills, credit cards, loans, and more with an intuitive interface and powerful analytics.
 

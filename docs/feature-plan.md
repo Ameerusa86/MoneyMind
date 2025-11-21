@@ -464,7 +464,7 @@ This phase implements the Transaction model and wires it into the core payment w
   - 6 Mongoose models (Account, Bill, Expense, PaySchedule, PayPeriod, PlannedPayment)
   - 12 authenticated API routes with full CRUD
   - Better-Auth with MongoDB adapter
-  - Split databases: `WalletWave` (app data) + `WalletWaveAuth` (user/session data)
+  - Split databases: `MoneyMind` (app data) + `MoneyMindAuth` (user/session data)
   - API-based storage layer replacing localStorage
   - Server-side auth guards on all routes
   - Session monitoring and auto-refresh

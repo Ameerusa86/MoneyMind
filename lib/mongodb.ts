@@ -23,8 +23,8 @@ if (process.env.NODE_ENV === "development") {
 }
 
 const APP_DB =
-  process.env.MONGODB_APP_DB || process.env.MONGODB_DB || "WalletWave";
-const AUTH_DB = process.env.MONGODB_AUTH_DB || "WalletWaveAuth";
+  process.env.MONGODB_APP_DB || process.env.MONGODB_DB || "MoneyMind";
+const AUTH_DB = process.env.MONGODB_AUTH_DB || "MoneyMindAuth";
 
 export async function getDb(): Promise<Db> {
   // Backwards compatible: default to application data DB

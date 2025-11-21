@@ -1,6 +1,6 @@
 {
-  "name": "WalletWave Finance Tracker",
-  "short_name": "WalletWave",
+  "name": "MoneyMind Finance Tracker",
+  "short_name": "MoneyMind",
   "description": "Track income, expenses, accounts, loans and analytics offline.",
   "start_url": "/",
   "scope": "/",
