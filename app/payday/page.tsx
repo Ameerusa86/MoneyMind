@@ -89,6 +89,7 @@ export default function PaydayPage() {
 
       if (transaction) {
         setRecordedDeposits(new Set([...recordedDeposits, scheduleId]));
+        // Reload accounts to show updated balances
         await loadData();
       }
     } catch (error) {

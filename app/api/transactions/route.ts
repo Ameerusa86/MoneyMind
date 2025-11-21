@@ -5,6 +5,7 @@ import {
   errorResponse,
 } from "@/lib/api-auth";
 import Transaction from "@/lib/models/Transaction";
+import Account from "@/lib/models/Account";
 import dbConnect from "@/lib/mongoose";
 
 // GET /api/transactions - List all transactions for authenticated user
@@ -118,6 +119,52 @@ export async function POST(req: NextRequest) {
       category: body.category,
       metadata: body.metadata,
     });
+
+    // Update account balances based on transaction type
+    const amount = body.amount;
+
+    if (body.type === "income_deposit" && body.toAccountId) {
+      // Add income to the destination account (checking/savings)
+      await Account.findOneAndUpdate(
+        { _id: body.toAccountId, userId },
+        { $inc: { balance: amount } }
+      );
+    } else if (body.type === "payment") {
+      // Deduct from source account (checking)
+      if (body.fromAccountId) {
+        await Account.findOneAndUpdate(
+          { _id: body.fromAccountId, userId },
+          { $inc: { balance: -amount } }
+        );
+      }
+      // Reduce debt in destination account (credit/loan)
+      if (body.toAccountId) {
+        await Account.findOneAndUpdate(
+          { _id: body.toAccountId, userId },
+          { $inc: { balance: -amount } }
+        );
+      }
+    } else if (body.type === "expense" && body.fromAccountId) {
+      // Deduct expense from source account
+      await Account.findOneAndUpdate(
+        { _id: body.fromAccountId, userId },
+        { $inc: { balance: -amount } }
+      );
+    } else if (body.type === "transfer") {
+      // Deduct from source, add to destination
+      if (body.fromAccountId) {
+        await Account.findOneAndUpdate(
+          { _id: body.fromAccountId, userId },
+          { $inc: { balance: -amount } }
+        );
+      }
+      if (body.toAccountId) {
+        await Account.findOneAndUpdate(
+          { _id: body.toAccountId, userId },
+          { $inc: { balance: amount } }
+        );
+      }
+    }
 
     return NextResponse.json(
       {
