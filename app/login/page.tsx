@@ -67,10 +67,10 @@ export default function LoginPage() {
   const handleDemoLogin = () => {
     setError(null);
     setLoading(true);
-    
+
     const email = "test@test.com";
     const pwd = "Test123456";
-    
+
     if (validateDemoCredentials(email, pwd)) {
       createDemoSession();
       router.push("/");
