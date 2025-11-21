@@ -124,6 +124,15 @@ Copy the output to BETTER_AUTH_SECRET in .env.local
 6. **Open your browser**
    Navigate to [http://localhost:3000](http://localhost:3000)
 
+### 🎭 Try the Demo
+
+Want to test the app without setting up a database? Use the demo account:
+
+- **Email**: `test@test.com`
+- **Password**: `Test123456`
+
+The demo account uses local storage only and comes pre-populated with sample data. Perfect for exploring features!
+
 ## 🌐 Deployment to Vercel
 
 ### One-Click Deploy

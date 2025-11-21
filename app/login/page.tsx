@@ -7,6 +7,11 @@ import { useRouter } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { authClient } from "@/lib/auth-client";
+import {
+  isDemoUser,
+  validateDemoCredentials,
+  createDemoSession,
+} from "@/lib/demo-auth";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -20,6 +25,20 @@ export default function LoginPage() {
     setError(null);
     setLoading(true);
     try {
+      // Check if demo account
+      if (isDemoUser(identifier)) {
+        if (validateDemoCredentials(identifier, password)) {
+          createDemoSession();
+          router.push("/");
+          return;
+        } else {
+          setError("Invalid demo credentials");
+          setLoading(false);
+          return;
+        }
+      }
+
+      // Regular authentication
       const isEmail = identifier.includes("@");
       if (isEmail) {
         const { error } = await authClient.signIn.email(
@@ -43,6 +62,11 @@ export default function LoginPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleDemoLogin = () => {
+    setIdentifier("test@test.com");
+    setPassword("Test123456");
   };
 
   return (
@@ -134,6 +158,20 @@ export default function LoginPage() {
                 {loading ? "Signing in..." : "Sign In"}
               </Button>
             </form>
+
+            <div className="mt-4">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleDemoLogin}
+                className="w-full border-purple-600 bg-purple-950/30 text-purple-300 hover:bg-purple-900/40"
+              >
+                🎭 Try Demo Account
+              </Button>
+              <p className="mt-2 text-xs text-center text-gray-500">
+                Uses local storage • No database access required
+              </p>
+            </div>
 
             <div className="relative my-6">
               <div className="absolute inset-0 flex items-center">
