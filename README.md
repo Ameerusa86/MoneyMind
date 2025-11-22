@@ -252,7 +252,7 @@ This project is open source and available under the [MIT License](LICENSE).
 **Your Name**
 
 - GitHub: [@Ameerusa86](https://github.com/Ameerusa86)
-- Portfolio: [Your Portfolio URL]
+- Portfolio: [My Portfolio](https://ameer-hasan-portfolio2025.vercel.app/)
 
 ## 🙏 Acknowledgments
 
