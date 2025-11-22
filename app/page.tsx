@@ -39,23 +39,14 @@ export default async function DashboardPage() {
   const monthStart = new Date(year, month, 1);
   const monthEnd = new Date(year, month + 1, 0);
 
-  const [expenses, accountsRaw, schedules, allTransactions] = await Promise.all(
-    [
-      Expense.find({
-        userId,
-        date: { $gte: monthStart.toISOString(), $lte: monthEnd.toISOString() },
-      }).lean(),
-      Account.find({ userId }).lean(),
-      PaySchedule.find({ userId }).lean(),
-      // Import Transaction model
-      (async () => {
-        const { default: Transaction } = await import(
-          "@/lib/models/Transaction"
-        );
-        return Transaction.find({ userId }).lean();
-      })(),
-    ]
-  );
+  // Import Transaction model
+  const { default: Transaction } = await import("@/lib/models/Transaction");
+
+  const [accountsRaw, schedules, allTransactions] = await Promise.all([
+    Account.find({ userId }).lean(),
+    PaySchedule.find({ userId }).lean(),
+    Transaction.find({ userId }).lean(),
+  ]);
 
   // Import balance calculation
   const { calculateAccountBalances } = await import("@/lib/balance");
@@ -95,10 +86,25 @@ export default async function DashboardPage() {
   // Calculate real-time balances
   const balanceMap = calculateAccountBalances(accounts, transactions);
 
-  const totalExpenses = expenses.reduce(
-    (sum: number, exp: any) => sum + exp.amount,
-    0
+  // Calculate total expenses from transactions this month
+  // If no data for current month, show most recent month's data
+  const currentMonthExpenses = transactions.filter(
+    (t) =>
+      t.type === "expense" &&
+      new Date(t.date) >= monthStart &&
+      new Date(t.date) <= monthEnd
   );
+
+  const totalExpenses =
+    currentMonthExpenses.length > 0
+      ? currentMonthExpenses.reduce(
+          (sum: number, t: any) => sum + Math.abs(t.amount),
+          0
+        )
+      : transactions
+          .filter((t) => t.type === "expense")
+          .slice(0, 50)
+          .reduce((sum: number, t: any) => sum + Math.abs(t.amount), 0);
 
   // Credit card debt: sum of all 'credit' type accounts (real-time)
   const creditCardDebt = accounts
@@ -132,15 +138,21 @@ export default async function DashboardPage() {
     }, 0);
 
   // Calculate total income from actual deposits this month
-  // This accurately reflects variable income (wife's hourly pay) and fixed salary (yours)
-  const totalIncome = transactions
-    .filter(
-      (t) =>
-        t.type === "income_deposit" &&
-        new Date(t.date) >= monthStart &&
-        new Date(t.date) <= monthEnd
-    )
-    .reduce((sum, t) => sum + t.amount, 0);
+  // If no data for current month, show most recent data
+  const currentMonthIncome = transactions.filter(
+    (t) =>
+      t.type === "income_deposit" &&
+      new Date(t.date) >= monthStart &&
+      new Date(t.date) <= monthEnd
+  );
+
+  const totalIncome =
+    currentMonthIncome.length > 0
+      ? currentMonthIncome.reduce((sum, t) => sum + Math.abs(t.amount), 0)
+      : transactions
+          .filter((t) => t.type === "income_deposit")
+          .slice(0, 50)
+          .reduce((sum, t) => sum + Math.abs(t.amount), 0);
 
   const stats = {
     totalIncome,
@@ -150,6 +162,11 @@ export default async function DashboardPage() {
     savings,
     checkingCash,
   };
+
+  // Determine display period
+  const hasCurrentMonthData =
+    currentMonthExpenses.length > 0 || currentMonthIncome.length > 0;
+  const displayPeriod = hasCurrentMonthData ? "This month" : "Recent";
 
   return (
     <div className="space-y-8">
@@ -172,7 +189,7 @@ export default async function DashboardPage() {
               {formatCurrency(stats.totalIncome)}
             </div>
             <p className="text-xs text-gray-600 dark:text-gray-400">
-              This month
+              {displayPeriod}
             </p>
           </CardContent>
         </Card>
@@ -189,7 +206,7 @@ export default async function DashboardPage() {
               {formatCurrency(stats.totalExpenses)}
             </div>
             <p className="text-xs text-gray-600 dark:text-gray-400">
-              This month
+              {displayPeriod}
             </p>
           </CardContent>
         </Card>
@@ -204,7 +221,7 @@ export default async function DashboardPage() {
               {formatCurrency(stats.totalIncome - stats.totalExpenses)}
             </div>
             <p className="text-xs text-gray-600 dark:text-gray-400">
-              This month
+              {displayPeriod}
             </p>
           </CardContent>
         </Card>

@@ -1,97 +1,119 @@
+// app/api/transactions/route.ts
 import { NextRequest, NextResponse } from "next/server";
+import crypto from "crypto";
+
+import dbConnect from "@/lib/mongoose";
+import Transaction from "@/lib/models/Transaction";
+import Account from "@/lib/models/Account";
 import {
   getAuthenticatedUser,
   unauthorizedResponse,
   errorResponse,
 } from "@/lib/api-auth";
-import Transaction from "@/lib/models/Transaction";
-import Account from "@/lib/models/Account";
-import dbConnect from "@/lib/mongoose";
+import type { TransactionType } from "@/lib/types";
 
-// GET /api/transactions - List all transactions for authenticated user
+interface LeanTransaction {
+  _id: { toString(): string };
+  userId: string;
+  type: TransactionType;
+  fromAccountId?: string;
+  toAccountId?: string;
+  amount: number;
+  date: string;
+  description?: string;
+  category?: string;
+  metadata?: Record<string, unknown>;
+  createdAt: Date;
+}
+
+// Keep in sync with import route
+function buildTransactionKey(args: {
+  userId: string;
+  date: string;
+  amount: number;
+  description?: string;
+}) {
+  const raw = [
+    args.userId,
+    args.date.trim(),
+    args.amount.toFixed(2),
+    (args.description || "").trim().toLowerCase(),
+  ].join("||");
+
+  return crypto.createHash("sha256").update(raw).digest("hex");
+}
+
+// GET /api/transactions
+// ?type=expense&accountId=...&month=2025-09&limit=100&skip=0
 export async function GET(req: NextRequest) {
   const userId = await getAuthenticatedUser(req);
   if (!userId) return unauthorizedResponse();
 
   try {
     await dbConnect();
-
-    // Parse query parameters for filtering
     const { searchParams } = new URL(req.url);
-    const type = searchParams.get("type");
-    const fromAccountId = searchParams.get("fromAccountId");
-    const toAccountId = searchParams.get("toAccountId");
-    const startDate = searchParams.get("startDate");
-    const endDate = searchParams.get("endDate");
 
-    // Build query
-    interface QueryFilter {
-      userId: string;
-      type?: string;
-      fromAccountId?: string;
-      toAccountId?: string;
-      date?: {
-        $gte?: string;
-        $lte?: string;
-      };
+    const type = searchParams.get("type"); // e.g. "expense"
+    const accountId = searchParams.get("accountId"); // filter by account
+    const month = searchParams.get("month"); // "YYYY-MM"
+    const limit = Math.min(
+      parseInt(searchParams.get("limit") || "100", 10),
+      500
+    );
+    const skip = parseInt(searchParams.get("skip") || "0", 10);
+
+    const query: Record<string, unknown> = {
+      userId: userId.toString(),
+    };
+
+    if (type) {
+      query.type = type;
     }
 
-    const query: QueryFilter = { userId };
-
-    if (type) query.type = type;
-    if (fromAccountId) query.fromAccountId = fromAccountId;
-    if (toAccountId) query.toAccountId = toAccountId;
-    if (startDate || endDate) {
-      query.date = {};
-      if (startDate) query.date.$gte = startDate;
-      if (endDate) query.date.$lte = endDate;
+    if (accountId) {
+      // match either side of the transaction
+      query.$or = [{ fromAccountId: accountId }, { toAccountId: accountId }];
     }
 
-    const transactions = await Transaction.find(query)
+    if (month && /^\d{4}-\d{2}$/.test(month)) {
+      // date stored as "YYYY-MM-DD" string
+      query.date = { $regex: `^${month}` };
+    }
+
+    const docs = await Transaction.find(query)
       .sort({ date: -1, createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
       .lean();
 
-    // Format for client
-    const formattedTransactions = transactions.map((txn) => {
-      const t = txn as unknown as {
-        _id: { toString: () => string };
-        userId: string;
-        type: string;
-        fromAccountId?: string;
-        toAccountId?: string;
-        amount: number;
-        date: string;
-        description?: string;
-        category?: string;
-        metadata?: Record<string, unknown>;
-        createdAt: Date;
-        updatedAt: Date;
-      };
+    const result = docs.map((doc) => {
+      const t = doc as unknown as LeanTransaction;
       return {
         id: t._id.toString(),
         userId: t.userId,
-        type: t.type,
-        fromAccountId: t.fromAccountId,
-        toAccountId: t.toAccountId,
+        type: t.type as TransactionType,
+        fromAccountId: t.fromAccountId || undefined,
+        toAccountId: t.toAccountId || undefined,
         amount: t.amount,
         date: t.date,
         description: t.description,
         category: t.category,
         metadata: t.metadata,
-        createdAt: t.createdAt.toISOString(),
-        updatedAt: t.updatedAt.toISOString(),
+        createdAt: t.createdAt?.toISOString?.() ?? new Date().toISOString(),
       };
     });
 
-    return NextResponse.json(formattedTransactions);
+    return NextResponse.json(result);
   } catch (error) {
+    console.error("GET /api/transactions error:", error);
     return errorResponse(
       error instanceof Error ? error.message : "Unknown error"
     );
   }
 }
 
-// POST /api/transactions - Create new transaction
+// POST /api/transactions
+// Used by the Expenses page to create a new expense transaction
 export async function POST(req: NextRequest) {
   const userId = await getAuthenticatedUser(req);
   if (!userId) return unauthorizedResponse();
@@ -100,90 +122,102 @@ export async function POST(req: NextRequest) {
     await dbConnect();
     const body = await req.json();
 
-    // Validate required fields
-    if (!body.type || !body.amount || !body.date) {
-      return NextResponse.json(
-        { error: "Missing required fields: type, amount, date" },
-        { status: 400 }
+    const {
+      type,
+      amount,
+      date,
+      description,
+      category,
+      fromAccountId,
+      toAccountId,
+      metadata,
+    } = body as {
+      type: TransactionType;
+      amount: number;
+      date: string;
+      description?: string;
+      category?: string;
+      fromAccountId?: string;
+      toAccountId?: string;
+      metadata?: Record<string, unknown>;
+    };
+
+    if (
+      !type ||
+      typeof amount !== "number" ||
+      !date ||
+      (!fromAccountId && !toAccountId)
+    ) {
+      return errorResponse(
+        "Missing required fields: type, amount, date, and at least one accountId",
+        400
       );
     }
 
-    const transaction = await Transaction.create({
-      userId,
-      type: body.type,
-      fromAccountId: body.fromAccountId,
-      toAccountId: body.toAccountId,
-      amount: body.amount,
-      date: body.date,
-      description: body.description,
-      category: body.category,
-      metadata: body.metadata,
+    // Optional: validate that referenced accounts belong to this user
+    const accountIdsToCheck = [fromAccountId, toAccountId].filter(
+      Boolean
+    ) as string[];
+    if (accountIdsToCheck.length > 0) {
+      const accounts = await Account.find({
+        _id: { $in: accountIdsToCheck },
+        userId,
+      });
+      if (accounts.length !== accountIdsToCheck.length) {
+        return errorResponse("Invalid account reference", 400);
+      }
+    }
+
+    const userIdStr = userId.toString();
+    const transactionKey = buildTransactionKey({
+      userId: userIdStr,
+      date,
+      amount,
+      description,
     });
 
-    // Update account balances based on transaction type
-    const amount = body.amount;
-
-    if (body.type === "income_deposit" && body.toAccountId) {
-      // Add income to the destination account (checking/savings)
-      await Account.findOneAndUpdate(
-        { _id: body.toAccountId, userId },
-        { $inc: { balance: amount } }
-      );
-    } else if (body.type === "payment") {
-      // Deduct from source account (checking)
-      if (body.fromAccountId) {
-        await Account.findOneAndUpdate(
-          { _id: body.fromAccountId, userId },
-          { $inc: { balance: -amount } }
-        );
-      }
-      // Reduce debt in destination account (credit/loan)
-      if (body.toAccountId) {
-        await Account.findOneAndUpdate(
-          { _id: body.toAccountId, userId },
-          { $inc: { balance: -amount } }
-        );
-      }
-    } else if (body.type === "expense" && body.fromAccountId) {
-      // Deduct expense from source account
-      await Account.findOneAndUpdate(
-        { _id: body.fromAccountId, userId },
-        { $inc: { balance: -amount } }
-      );
-    } else if (body.type === "transfer") {
-      // Deduct from source, add to destination
-      if (body.fromAccountId) {
-        await Account.findOneAndUpdate(
-          { _id: body.fromAccountId, userId },
-          { $inc: { balance: -amount } }
-        );
-      }
-      if (body.toAccountId) {
-        await Account.findOneAndUpdate(
-          { _id: body.toAccountId, userId },
-          { $inc: { balance: amount } }
-        );
+    // Avoid exact duplicates if transactionKey exists
+    if (transactionKey) {
+      const existing = await Transaction.findOne({
+        userId: userIdStr,
+        transactionKey,
+      }).lean();
+      if (existing) {
+        return errorResponse("Duplicate transaction", 409);
       }
     }
+
+    const txn = await Transaction.create({
+      userId: userIdStr,
+      transactionKey,
+      type,
+      fromAccountId,
+      toAccountId,
+      amount,
+      date,
+      description,
+      category,
+      metadata: metadata || {},
+    });
 
     return NextResponse.json(
       {
-        id: transaction._id.toString(),
-        userId: transaction.userId,
-        type: transaction.type,
-        fromAccountId: transaction.fromAccountId,
-        toAccountId: transaction.toAccountId,
-        amount: transaction.amount,
-        date: transaction.date,
-        description: transaction.description,
-        category: transaction.category,
-        metadata: transaction.metadata,
-        createdAt: transaction.createdAt.toISOString(),
-        updatedAt: transaction.updatedAt.toISOString(),
+        id: txn._id.toString(),
+        userId: txn.userId,
+        type: txn.type as TransactionType,
+        fromAccountId: txn.fromAccountId,
+        toAccountId: txn.toAccountId,
+        amount: txn.amount,
+        date: txn.date,
+        description: txn.description,
+        category: txn.category,
+        metadata: txn.metadata,
+        createdAt: txn.createdAt.toISOString(),
       },
       { status: 201 }
     );
   } catch (error) {
+    console.error("POST /api/transactions error:", error);
     return errorResponse(
       error instanceof Error ? error.message : "Unknown error"
     );

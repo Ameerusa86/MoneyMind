@@ -12,8 +12,16 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { formatCurrency, formatDate } from "@/lib/utils";
-import { ExpenseStorage } from "@/lib/storage";
-import type { Expense } from "@/lib/types";
+import type { TransactionType } from "@/lib/types";
+
+interface Transaction {
+  id: string;
+  type: TransactionType;
+  amount: number;
+  date: string;
+  description?: string;
+  category?: string;
+}
 
 const categoryLabels: Record<string, string> = {
   groceries: "Groceries",
@@ -31,18 +39,21 @@ const categoryLabels: Record<string, string> = {
 };
 
 export function RecentTransactions() {
-  const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
     setIsMounted(true);
     const fetchData = async () => {
-      const allExpenses = await ExpenseStorage.getAll();
-      // Sort by date descending and take first 6
-      allExpenses.sort(
-        (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
-      );
-      setExpenses(allExpenses.slice(0, 6));
+      try {
+        const res = await fetch("/api/transactions?limit=10");
+        if (res.ok) {
+          const data = await res.json();
+          setTransactions(data.slice(0, 6));
+        }
+      } catch (error) {
+        console.error("Error fetching recent transactions:", error);
+      }
     };
 
     fetchData();
@@ -58,37 +69,58 @@ export function RecentTransactions() {
           <div className="text-center py-8 text-muted-foreground">
             Loading...
           </div>
-        ) : expenses.length === 0 ? (
+        ) : transactions.length === 0 ? (
           <div className="text-center py-8 text-muted-foreground">
-            No transactions yet. Add expenses to see them here.
+            No transactions yet. Add or import transactions to see them here.
           </div>
         ) : (
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Date</TableHead>
+                <TableHead>Type</TableHead>
                 <TableHead>Description</TableHead>
                 <TableHead>Category</TableHead>
                 <TableHead className="text-right">Amount</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {expenses.map((expense) => (
-                <TableRow key={expense.id}>
-                  <TableCell className="font-medium">
-                    {formatDate(new Date(expense.date))}
-                  </TableCell>
-                  <TableCell>{expense.description}</TableCell>
-                  <TableCell>
-                    <Badge variant="secondary">
-                      {categoryLabels[expense.category]}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-right font-semibold text-red-600">
-                    -{formatCurrency(expense.amount)}
-                  </TableCell>
-                </TableRow>
-              ))}
+              {transactions.map((txn) => {
+                const isIncome = txn.type === "income_deposit";
+                const isExpense = txn.type === "expense";
+                const color = isIncome
+                  ? "text-green-600 dark:text-green-400"
+                  : isExpense
+                    ? "text-red-600 dark:text-red-400"
+                    : "text-blue-600 dark:text-blue-400";
+
+                return (
+                  <TableRow key={txn.id}>
+                    <TableCell className="font-medium">
+                      {formatDate(new Date(txn.date))}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className="uppercase text-xs">
+                        {txn.type.replace(/_/g, " ")}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>{txn.description || "—"}</TableCell>
+                    <TableCell>
+                      {txn.category ? (
+                        <Badge variant="secondary">
+                          {categoryLabels[txn.category] || txn.category}
+                        </Badge>
+                      ) : (
+                        "—"
+                      )}
+                    </TableCell>
+                    <TableCell className={`text-right font-semibold ${color}`}>
+                      {isIncome ? "+" : ""}
+                      {formatCurrency(Math.abs(txn.amount))}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         )}

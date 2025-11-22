@@ -10,7 +10,6 @@ import {
   Legend,
   Tooltip,
 } from "recharts";
-import { ExpenseStorage } from "@/lib/storage";
 
 const categoryColors: Record<string, string> = {
   Groceries: "#ef4444",
@@ -51,22 +50,42 @@ export function ExpenseBreakdown() {
   useEffect(() => {
     setIsMounted(true);
     const fetchData = async () => {
-      const now = new Date();
-      const breakdown = await ExpenseStorage.getCategoryBreakdown(
-        now.getFullYear(),
-        now.getMonth()
-      );
+      try {
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = now.getMonth();
+        const monthStr = `${year}-${String(month + 1).padStart(2, "0")}`;
 
-      const chartData = Object.entries(breakdown)
-        .map(([category, value]) => ({
-          name: categoryLabels[category] || category,
-          value,
-          color:
-            categoryColors[categoryLabels[category] || category] || "#6b7280",
-        }))
-        .sort((a, b) => b.value - a.value);
+        const res = await fetch(
+          `/api/transactions?type=expense&month=${monthStr}`
+        );
+        if (!res.ok) {
+          setData([]);
+          return;
+        }
 
-      setData(chartData);
+        const transactions = await res.json();
+        const breakdown: Record<string, number> = {};
+
+        transactions.forEach((t: any) => {
+          const cat = t.category || "other";
+          breakdown[cat] = (breakdown[cat] || 0) + Math.abs(t.amount);
+        });
+
+        const chartData = Object.entries(breakdown)
+          .map(([category, value]) => ({
+            name: categoryLabels[category] || category,
+            value,
+            color:
+              categoryColors[categoryLabels[category] || category] || "#6b7280",
+          }))
+          .sort((a, b) => b.value - a.value);
+
+        setData(chartData);
+      } catch (error) {
+        console.error("Error fetching expense breakdown:", error);
+        setData([]);
+      }
     };
 
     fetchData();

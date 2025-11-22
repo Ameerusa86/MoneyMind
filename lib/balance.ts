@@ -10,6 +10,10 @@ import type { Account, Transaction } from "./types";
  * - Checking/Savings: Start with initial balance, add income_deposits, subtract payments/expenses/transfers-out
  * - Credit Cards/Loans: Start with 0 (or initial balance), add expenses, subtract payments
  *
+ * IMPORTANT: This function calculates the CURRENT balance by applying all transactions
+ * to the opening balance. The stored account.balance represents the opening/baseline balance,
+ * NOT the current balance. To get current balance, always call this function.
+ *
  * @param account The account to calculate balance for
  * @param transactions All transactions for this account (filtered by fromAccountId or toAccountId)
  * @param upToDate Optional ISO date string - calculate balance as of this date
@@ -20,7 +24,9 @@ export function calculateAccountBalance(
   transactions: Transaction[],
   upToDate?: string
 ): number {
-  let balance = account.balance; // Start with stored/initial balance
+  // Use stored balance as the OPENING/BASELINE balance
+  // This should be the balance BEFORE any transactions in the system
+  let balance = account.balance;
 
   // Filter by date if specified
   let relevantTxns = transactions;

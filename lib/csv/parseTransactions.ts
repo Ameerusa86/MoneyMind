@@ -1,3 +1,4 @@
+// lib/csv/parseTransactions.ts
 import { TransactionType } from "../types";
 
 export interface CsvTransactionRow {
@@ -50,37 +51,17 @@ export function parseCsvTextToTransactions(text: string): CsvTransactionRow[] {
   const lines = cleaned.split(/\r?\n/).filter((l) => l.trim().length > 0);
   if (lines.length <= 1) return [];
 
-  let header = parseCsvLine(lines[0].replace(/^\uFEFF/, ""));
+  const header = parseCsvLine(lines[0].replace(/^\uFEFF/, ""));
   const headerLower = header.map((h) => h.trim().toLowerCase());
   const idx = (name: string) => headerLower.indexOf(name.toLowerCase());
 
-  // Detect bank statement format (Date, Description, Amount, Running Bal)
-  const isBankFormat =
-    idx("date") !== -1 &&
-    idx("description") !== -1 &&
-    idx("amount") !== -1 &&
-    (idx("running bal") !== -1 ||
-      idx("running bal.") !== -1 ||
-      idx("running bal.") !== -1 ||
-      idx("running balance") !== -1);
-
+  // Required: Date, Description, Amount
   const dateIdx = idx("date");
-  const typeIdx = isBankFormat ? -1 : idx("type");
-  const amountIdx = idx("amount");
   const descriptionIdx = idx("description");
-  const categoryIdx = idx("category");
-  const fromAccountIdIdx = idx("fromaccountid");
-  const toAccountIdIdx = idx("toaccountid");
-  const metadataIdx = idx("metadata");
-  const runningBalIdx = isBankFormat
-    ? ["running bal", "running bal.", "running balance"].reduce(
-        (acc, h) => (acc !== -1 ? acc : idx(h)),
-        -1
-      )
-    : -1;
+  const amountIdx = idx("amount");
 
   // Validate mandatory columns
-  if (dateIdx === -1 || amountIdx === -1) {
+  if (dateIdx === -1 || descriptionIdx === -1 || amountIdx === -1) {
     return [];
   }
 
@@ -92,6 +73,7 @@ export function parseCsvTextToTransactions(text: string): CsvTransactionRow[] {
 
     const rawDate = row[dateIdx] || "";
     let date = rawDate.trim();
+
     // Convert bank style M/D/YYYY or M/D/YY to ISO YYYY-MM-DD
     const mdY = /^([0-9]{1,2})\/([0-9]{1,2})\/([0-9]{2,4})$/;
     const mdYMatch = date.match(mdY);
@@ -104,77 +86,47 @@ export function parseCsvTextToTransactions(text: string): CsvTransactionRow[] {
     }
 
     // Amount: strip commas
-    let amount = 0;
-    if (amountIdx >= 0) {
-      const amtStr = (row[amountIdx] || "").replace(/,/g, "").trim();
-      amount = Number(amtStr);
-    }
+    const amtStr = (row[amountIdx] || "").replace(/,/g, "").trim();
+    const amount = Number(amtStr);
 
-    // Determine type for bank format rows
-    let type: TransactionType = "expense";
-    if (isBankFormat) {
-      const descLower = (row[descriptionIdx] || "").toLowerCase();
-      if (amount > 0) {
-        if (
-          /dir dep|deposit|cash reward|zelle payment from|discover|ems manag/.test(
-            descLower
-          )
-        ) {
-          type = "income_deposit";
-        } else {
-          type = "adjustment";
-        }
-      } else if (amount < 0) {
-        if (/payment|pmt|repay|online banking payment/.test(descLower)) {
-          type = "payment";
-        } else {
-          type = "expense";
-        }
-      }
-    } else {
-      type = (row[typeIdx] || "expense") as TransactionType;
-    }
-
-    const description =
-      descriptionIdx >= 0 ? row[descriptionIdx] || undefined : undefined;
-    const category =
-      categoryIdx >= 0 ? row[categoryIdx] || undefined : undefined;
-    const fromAccountId =
-      fromAccountIdIdx >= 0 ? row[fromAccountIdIdx] || undefined : undefined;
-    const toAccountId =
-      toAccountIdIdx >= 0 ? row[toAccountIdIdx] || undefined : undefined;
-
-    let metadata: Record<string, any> | undefined;
-    if (metadataIdx >= 0 && row[metadataIdx]) {
-      try {
-        metadata = JSON.parse(row[metadataIdx]);
-      } catch {
-        metadata = { raw: row[metadataIdx] };
-      }
-    }
-    // Capture running balance if present in bank format
-    if (runningBalIdx >= 0 && row[runningBalIdx]) {
-      const rbStr = row[runningBalIdx].replace(/,/g, "").trim();
-      const rbVal = Number(rbStr);
-      if (!Number.isNaN(rbVal)) {
-        metadata = { ...(metadata || {}), runningBalance: rbVal };
-      }
-    }
-
-    // basic required fields guard
-    if (!date || Number.isNaN(amount)) {
+    // Basic validation
+    if (!date || Number.isNaN(amount) || amount === 0) {
       continue;
+    }
+
+    const description = row[descriptionIdx] || "";
+    const descLower = description.toLowerCase();
+
+    // NEW LOGIC: Positive = Expense, Negative = Income/Deposit
+    let type: TransactionType;
+    let finalAmount: number;
+
+    if (amount > 0) {
+      // Positive amount = expense (money spent)
+      type = "expense";
+      finalAmount = amount;
+    } else {
+      // Negative amount = income/deposit (money received)
+      // Convert to positive for storage
+      finalAmount = Math.abs(amount);
+
+      // Try to classify the type of income based on description
+      if (/payment|pmt|repay|refund/.test(descLower)) {
+        type = "payment"; // This is a refund/payment received
+      } else {
+        type = "income_deposit"; // Regular income/deposit
+      }
     }
 
     result.push({
       date,
       type,
-      amount,
+      amount: finalAmount,
       description,
-      category,
-      fromAccountId,
-      toAccountId,
-      metadata,
+      category: undefined, // Will be set during manual categorization
+      fromAccountId: undefined,
+      toAccountId: undefined,
+      metadata: undefined,
     });
   }
 

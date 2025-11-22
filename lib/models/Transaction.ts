@@ -1,8 +1,10 @@
+// lib/models/transaction.ts
 import mongoose, { Schema, Document } from "mongoose";
 import type { TransactionType } from "../types";
 
 export interface ITransaction extends Document {
   userId: string;
+  transactionKey?: string; // <--- Optional: deterministic unique key
   type: TransactionType;
   fromAccountId?: string;
   toAccountId?: string;
@@ -17,8 +19,16 @@ export interface ITransaction extends Document {
 
 const TransactionSchema = new Schema<ITransaction>(
   {
-    // userId indexed via compound indexes below; avoid duplicate single-field index
     userId: { type: String, required: true },
+
+    transactionKey: {
+      type: String,
+      required: false, // <--- Make optional for backward compatibility
+      unique: true, // <--- enforce dedupe at DB level
+      sparse: true, // <--- Allow null values in unique index
+      index: true,
+    },
+
     type: {
       type: String,
       enum: ["income_deposit", "payment", "expense", "transfer", "adjustment"],

@@ -40,11 +40,32 @@ import {
   Trash2,
   Pencil,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { formatCurrency, formatDate } from "@/lib/utils";
-import { ExpenseStorage, AccountStorage } from "@/lib/storage";
-import type { Expense, ExpenseCategory } from "@/lib/types";
+import type { ExpenseCategory, TransactionType } from "@/lib/types";
 
-const categoryIcons: Record<ExpenseCategory, any> = {
+type TransactionDto = {
+  id: string;
+  userId: string;
+  type: TransactionType;
+  fromAccountId?: string;
+  toAccountId?: string;
+  amount: number;
+  date: string; // "YYYY-MM-DD"
+  description?: string;
+  category?: ExpenseCategory;
+  metadata?: Record<string, unknown>;
+  createdAt: string;
+};
+
+type AccountDto = {
+  id: string;
+  name: string;
+  type?: string;
+  balance?: number;
+};
+
+const categoryIcons: Record<ExpenseCategory, LucideIcon> = {
   groceries: ShoppingBag,
   dining: Utensils,
   transportation: Car,
@@ -76,9 +97,14 @@ const categoryLabels: Record<ExpenseCategory, string> = {
 
 export default function ExpensesPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [expenses, setExpenses] = useState<Expense[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [isMounted, setIsMounted] = useState(false);
+
+  const [transactions, setTransactions] = useState<TransactionDto[]>([]);
+  const [accounts, setAccounts] = useState<AccountDto[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
   const [formData, setFormData] = useState({
     description: "",
     amount: "",
@@ -87,19 +113,117 @@ export default function ExpensesPage() {
     accountId: "",
   });
 
-  // Load expenses on mount
+  /* ------------ Load data from APIs ------------ */
+
+  const loadData = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [txRes, accRes] = await Promise.all([
+        fetch("/api/transactions?type=expense"),
+        fetch("/api/accounts"),
+      ]);
+
+      if (!txRes.ok) {
+        const j = await txRes.json().catch(() => ({}));
+        throw new Error(j.error || "Failed to load expenses");
+      }
+      if (!accRes.ok) {
+        const j = await accRes.json().catch(() => ({}));
+        throw new Error(j.error || "Failed to load accounts");
+      }
+
+      const txJson = (await txRes.json()) as TransactionDto[];
+      const accJsonRaw = (await accRes.json()) as unknown[];
+      const accJson: AccountDto[] = (accJsonRaw || []).map((raw) => {
+        const a = raw as {
+          id?: string;
+          _id?: string;
+          name: string;
+          type?: string;
+          balance?: number;
+        };
+        return {
+          id: (a.id || a._id || "").toString(),
+          name: a.name,
+          type: a.type,
+          balance: a.balance,
+        };
+      });
+
+      // Sort by date desc, then createdAt desc
+      txJson.sort((a, b) => {
+        const d = new Date(b.date).getTime() - new Date(a.date).getTime();
+        if (d !== 0) return d;
+        return (
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        );
+      });
+
+      setTransactions(txJson);
+      setAccounts(accJson);
+    } catch (err) {
+      console.error(err);
+      setError(err instanceof Error ? err.message : "Failed to load data");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    setIsMounted(true);
-    loadExpenses();
+    loadData();
   }, []);
 
-  const loadExpenses = async () => {
-    const allExpenses = await ExpenseStorage.getAll();
-    // Sort by date descending
-    allExpenses.sort(
-      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+  /* ------------ Derived values - show all expenses ------------ */
+
+  const now = new Date();
+  const currentMonthExpenses = transactions.filter((t) => {
+    const d = new Date(t.date + "T00:00:00");
+    return (
+      d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth()
     );
-    setExpenses(allExpenses);
+  });
+
+  // If no data for current month, show most recent month
+  const displayExpenses =
+    currentMonthExpenses.length > 0
+      ? currentMonthExpenses
+      : transactions.slice(0, 50); // Show up to 50 most recent
+
+  const totalExpenses = displayExpenses.reduce(
+    (sum, t) => sum + Math.abs(t.amount),
+    0
+  );
+
+  const categoryTotals = displayExpenses.reduce(
+    (acc, txn) => {
+      const cat: ExpenseCategory = txn.category || "other";
+      const label = categoryLabels[cat];
+      acc[label] = (acc[label] || 0) + Math.abs(txn.amount);
+      return acc;
+    },
+    {} as Record<string, number>
+  );
+
+  // Determine display period
+  const displayPeriod =
+    currentMonthExpenses.length > 0
+      ? "This month"
+      : transactions.length > 0
+        ? "Recent"
+        : "No data";
+
+  /* ------------ Form handlers ------------ */
+
+  const resetForm = () => {
+    setFormData({
+      description: "",
+      amount: "",
+      category: "",
+      date: new Date().toISOString().split("T")[0],
+      accountId: "",
+    });
+    setEditingId(null);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -116,94 +240,85 @@ export default function ExpensesPage() {
       return;
     }
 
-    if (editingId) {
-      // Update existing expense
-      await ExpenseStorage.update(editingId, {
-        date: formData.date,
-        amount: parseFloat(formData.amount),
-        category: formData.category as ExpenseCategory,
-        description: formData.description,
-        accountId: formData.accountId,
-      });
-    } else {
-      // Add new expense
-      await ExpenseStorage.add({
-        date: formData.date,
-        amount: parseFloat(formData.amount),
-        category: formData.category as ExpenseCategory,
-        description: formData.description,
-        accountId: formData.accountId,
-      });
-    }
+    setSaving(true);
+    setError(null);
 
-    // Reset form and reload
-    setFormData({
-      description: "",
-      amount: "",
-      category: "",
-      date: new Date().toISOString().split("T")[0],
-      accountId: "",
-    });
-    setEditingId(null);
-    setIsDialogOpen(false);
-    await loadExpenses();
+    try {
+      const payload = {
+        type: "expense" as TransactionType,
+        amount: parseFloat(formData.amount),
+        date: formData.date,
+        description: formData.description,
+        category: formData.category as ExpenseCategory,
+        fromAccountId: formData.accountId,
+      };
+
+      if (editingId) {
+        const res = await fetch(`/api/transactions/${editingId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        if (!res.ok) {
+          const j = await res.json().catch(() => ({}));
+          throw new Error(j.error || "Failed to update expense");
+        }
+      } else {
+        const res = await fetch("/api/transactions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        if (!res.ok) {
+          const j = await res.json().catch(() => ({}));
+          throw new Error(j.error || "Failed to create expense");
+        }
+      }
+
+      resetForm();
+      setIsDialogOpen(false);
+      await loadData();
+    } catch (err) {
+      console.error(err);
+      setError(err instanceof Error ? err.message : "Failed to save expense");
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const handleEdit = (expense: Expense) => {
-    setEditingId(expense.id);
+  const handleEdit = (txn: TransactionDto) => {
+    const accountId = txn.fromAccountId || txn.toAccountId || "";
+
+    setEditingId(txn.id);
     setFormData({
-      description: expense.description || "",
-      amount: expense.amount.toString(),
-      category: expense.category,
-      date: expense.date,
-      accountId: expense.accountId || "",
+      description: txn.description || "",
+      amount: txn.amount.toString(),
+      category: (txn.category || "other") as ExpenseCategory,
+      date: txn.date,
+      accountId,
     });
     setIsDialogOpen(true);
   };
 
   const handleDelete = async (id: string) => {
-    if (confirm("Are you sure you want to delete this expense?")) {
-      await ExpenseStorage.delete(id);
-      await loadExpenses();
+    if (!confirm("Are you sure you want to delete this expense?")) return;
+
+    try {
+      const res = await fetch(`/api/transactions/${id}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error(j.error || "Failed to delete expense");
+      }
+      await loadData();
+    } catch (err) {
+      console.error(err);
+      setError(err instanceof Error ? err.message : "Failed to delete expense");
     }
   };
 
-  // State for current month's expenses and accounts
-  const [currentMonthExpenses, setCurrentMonthExpenses] = useState<Expense[]>(
-    []
-  );
-  const [accounts, setAccounts] = useState<any[]>([]);
-
-  // Load current month data
-  useEffect(() => {
-    if (!isMounted) return;
-
-    const loadMonthData = async () => {
-      const now = new Date();
-      const [monthExpenses, allAccounts] = await Promise.all([
-        ExpenseStorage.getByMonth(now.getFullYear(), now.getMonth()),
-        AccountStorage.getAll(),
-      ]);
-      setCurrentMonthExpenses(monthExpenses);
-      setAccounts(allAccounts);
-    };
-
-    loadMonthData();
-  }, [isMounted, expenses]);
-
-  const totalExpenses = currentMonthExpenses.reduce(
-    (sum, e) => sum + e.amount,
-    0
-  );
-
-  const categoryTotals = currentMonthExpenses.reduce(
-    (acc, expense) => {
-      const label = categoryLabels[expense.category];
-      acc[label] = (acc[label] || 0) + expense.amount;
-      return acc;
-    },
-    {} as Record<string, number>
-  );
+  /* ------------ UI ------------ */
 
   return (
     <div className="space-y-8">
@@ -211,23 +326,16 @@ export default function ExpensesPage() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Expenses</h1>
           <p className="text-muted-foreground">
-            Track and categorize your expenses
+            Track and categorize all expense transactions (including CSV
+            imports)
           </p>
         </div>
+
         <Dialog
           open={isDialogOpen}
           onOpenChange={(open) => {
             setIsDialogOpen(open);
-            if (!open) {
-              setEditingId(null);
-              setFormData({
-                description: "",
-                amount: "",
-                category: "",
-                date: new Date().toISOString().split("T")[0],
-                accountId: "",
-              });
-            }
+            if (!open) resetForm();
           }}
         >
           <DialogTrigger asChild>
@@ -249,7 +357,10 @@ export default function ExpensesPage() {
                   placeholder="e.g., Grocery Shopping"
                   value={formData.description}
                   onChange={(e) =>
-                    setFormData({ ...formData, description: e.target.value })
+                    setFormData({
+                      ...formData,
+                      description: e.target.value,
+                    })
                   }
                   required
                 />
@@ -263,7 +374,10 @@ export default function ExpensesPage() {
                   min="0"
                   value={formData.amount}
                   onChange={(e) =>
-                    setFormData({ ...formData, amount: e.target.value })
+                    setFormData({
+                      ...formData,
+                      amount: e.target.value,
+                    })
                   }
                   required
                 />
@@ -306,7 +420,10 @@ export default function ExpensesPage() {
                   type="date"
                   value={formData.date}
                   onChange={(e) =>
-                    setFormData({ ...formData, date: e.target.value })
+                    setFormData({
+                      ...formData,
+                      date: e.target.value,
+                    })
                   }
                   required
                 />
@@ -335,15 +452,24 @@ export default function ExpensesPage() {
                   </SelectContent>
                 </Select>
               </div>
-              <Button type="submit" className="w-full">
-                {editingId ? "Update Expense" : "Add Expense"}
+              <Button type="submit" className="w-full" disabled={saving}>
+                {saving
+                  ? editingId
+                    ? "Updating..."
+                    : "Adding..."
+                  : editingId
+                    ? "Update Expense"
+                    : "Add Expense"}
               </Button>
             </form>
           </DialogContent>
         </Dialog>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+      {error && <p className="text-sm text-red-500">{error}</p>}
+
+      {/* Summary cards */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
@@ -355,45 +481,115 @@ export default function ExpensesPage() {
             <div className="text-2xl font-bold text-rose-500">
               {formatCurrency(totalExpenses)}
             </div>
-            <p className="text-xs text-muted-foreground">This month</p>
+            <p className="text-xs text-muted-foreground">{displayPeriod}</p>
           </CardContent>
         </Card>
 
-        {Object.entries(categoryTotals)
-          .slice(0, 2)
-          .map(([category, amount]) => {
-            const Icon =
-              categoryIcons[category as keyof typeof categoryIcons] ||
-              ShoppingBag;
-            return (
-              <Card key={category}>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">
-                    {category}
-                  </CardTitle>
-                  <Icon className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">
-                    {formatCurrency(amount)}
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    {((amount / totalExpenses) * 100).toFixed(0)}% of total
-                  </p>
-                </CardContent>
-              </Card>
-            );
-          })}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">
+              Transaction Count
+            </CardTitle>
+            <ShoppingBag className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{displayExpenses.length}</div>
+            <p className="text-xs text-muted-foreground">{displayPeriod}</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Daily Average</CardTitle>
+            <TrendingDown className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {formatCurrency(
+                displayExpenses.length > 0 && currentMonthExpenses.length > 0
+                  ? totalExpenses / now.getDate()
+                  : displayExpenses.length > 0
+                    ? totalExpenses / Math.max(displayExpenses.length, 1)
+                    : 0
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {currentMonthExpenses.length > 0 ? "Per day" : "Average"}
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">
+              Largest Expense
+            </CardTitle>
+            <TrendingDown className="h-4 w-4 text-orange-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-orange-500">
+              {formatCurrency(
+                displayExpenses.length > 0
+                  ? Math.max(...displayExpenses.map((t) => Math.abs(t.amount)))
+                  : 0
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground">Largest</p>
+          </CardContent>
+        </Card>
       </div>
 
+      {/* Category breakdown cards */}
+      {Object.entries(categoryTotals).length > 0 && (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          {Object.entries(categoryTotals)
+            .sort(([, a], [, b]) => b - a)
+            .slice(0, 4)
+            .map(([label, amount]) => {
+              const key = Object.entries(categoryLabels).find(
+                ([, v]) => v === label
+              )?.[0] as ExpenseCategory | undefined;
+              const Icon = (key && categoryIcons[key]) || ShoppingBag;
+
+              return (
+                <Card key={label}>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">
+                      {label}
+                    </CardTitle>
+                    <Icon className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">
+                      {formatCurrency(amount)}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {totalExpenses > 0
+                        ? ((amount / totalExpenses) * 100).toFixed(0)
+                        : 0}
+                      % of total
+                    </p>
+                  </CardContent>
+                </Card>
+              );
+            })}
+        </div>
+      )}
+
+      {/* Table */}
       <Card>
         <CardHeader>
           <CardTitle>Expense Transactions</CardTitle>
         </CardHeader>
         <CardContent>
-          {expenses.length === 0 ? (
+          {loading ? (
             <div className="text-center py-8 text-muted-foreground">
-              No expenses yet. Click "Add Expense" to get started.
+              Loading expenses...
+            </div>
+          ) : transactions.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              No expense transactions yet. Import a CSV or click &quot;Add
+              Expense&quot; to get started.
             </div>
           ) : (
             <ResponsiveTable>
@@ -409,40 +605,46 @@ export default function ExpensesPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {expenses.map((expense) => {
-                    const account = expense.accountId
-                      ? accounts.find((a) => a.id === expense.accountId) || null
+                  {transactions.map((txn) => {
+                    const accountId = txn.fromAccountId || txn.toAccountId;
+                    const account = accountId
+                      ? accounts.find((a) => a.id === accountId) || null
                       : null;
+
                     return (
-                      <TableRow key={expense.id}>
+                      <TableRow key={txn.id}>
                         <TableCell className="font-medium">
-                          {formatDate(new Date(expense.date))}
+                          {formatDate(new Date(txn.date))}
                         </TableCell>
-                        <TableCell>{expense.description}</TableCell>
+                        <TableCell>{txn.description}</TableCell>
                         <TableCell>
                           <Badge variant="secondary">
-                            {categoryLabels[expense.category]}
+                            {
+                              categoryLabels[
+                                (txn.category || "other") as ExpenseCategory
+                              ]
+                            }
                           </Badge>
                         </TableCell>
                         <TableCell className="text-sm text-muted-foreground">
                           {account ? account.name : "-"}
                         </TableCell>
                         <TableCell className="text-right font-semibold text-rose-500">
-                          {formatCurrency(expense.amount)}
+                          {formatCurrency(Math.abs(txn.amount))}
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-2">
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => handleEdit(expense)}
+                              onClick={() => handleEdit(txn)}
                             >
                               <Pencil className="h-4 w-4 text-blue-500" />
                             </Button>
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => handleDelete(expense.id)}
+                              onClick={() => handleDelete(txn.id)}
                             >
                               <Trash2 className="h-4 w-4 text-rose-500" />
                             </Button>

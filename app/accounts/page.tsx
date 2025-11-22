@@ -36,14 +36,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { AccountStorage } from "@/lib/storage";
 import { Account, AccountType } from "@/lib/types";
-import {
-  Plus,
-  Edit,
-  Trash2,
-  CreditCard,
-  Landmark,
-  RefreshCw,
-} from "lucide-react";
+import { Plus, Edit, Trash2, CreditCard, Landmark } from "lucide-react";
 
 export default function AccountsPage() {
   const [accounts, setAccounts] = useState<
@@ -112,16 +105,10 @@ export default function AccountsPage() {
     }
   };
 
-  const handleSyncBalance = async (id: string, calculatedBalance: number) => {
-    if (
-      confirm(
-        `Sync stored balance to calculated balance of $${calculatedBalance.toFixed(2)}?`
-      )
-    ) {
-      await AccountStorage.update(id, { balance: calculatedBalance });
-      await loadAccountsWithBalances();
-    }
-  };
+  // Removed: handleSyncBalance - this was causing balance to grow every time
+  // The stored balance should be the OPENING balance (before any transactions)
+  // The calculated balance is computed by applying all transactions to the opening balance
+  // Users should only update stored balance when they want to set a new baseline
 
   const handleSave = async () => {
     if (!name || !balance) {
@@ -252,8 +239,8 @@ export default function AccountsPage() {
                   <div className="space-y-2">
                     <label className="text-sm font-medium">
                       {type === "checking" || type === "savings"
-                        ? "Account Balance ($) *"
-                        : "Current Balance ($) *"}
+                        ? "Opening Balance ($) *"
+                        : "Opening Balance ($) *"}
                     </label>
                     <Input
                       type="number"
@@ -262,16 +249,11 @@ export default function AccountsPage() {
                       onChange={(e) => setBalance(e.target.value)}
                       placeholder="0.00"
                     />
-                    {(type === "checking" || type === "savings") && (
-                      <p className="text-xs text-muted-foreground">
-                        Your available balance in this account
-                      </p>
-                    )}
-                    {(type === "credit" || type === "loan") && (
-                      <p className="text-xs text-muted-foreground">
-                        Amount you currently owe
-                      </p>
-                    )}
+                    <p className="text-xs text-muted-foreground">
+                      {type === "checking" || type === "savings"
+                        ? "Opening balance before any imported transactions (e.g., balance on the first transaction date)"
+                        : "Opening debt balance before any imported transactions"}
+                    </p>
                   </div>
 
                   {(type === "credit" || type === "loan") && (
@@ -370,13 +352,19 @@ export default function AccountsPage() {
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium">Total Debt</CardTitle>
+              <CardDescription className="text-xs">
+                Current balance (with transactions)
+              </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-red-600">
                 $
                 {accounts
                   .filter((a) => a.type === "credit" || a.type === "loan")
-                  .reduce((sum, a) => sum + a.balance, 0)
+                  .reduce(
+                    (sum, a) => sum + (a.calculatedBalance ?? a.balance),
+                    0
+                  )
                   .toLocaleString("en-US", { minimumFractionDigits: 2 })}
               </div>
             </CardContent>
@@ -387,13 +375,19 @@ export default function AccountsPage() {
               <CardTitle className="text-sm font-medium">
                 Total Assets
               </CardTitle>
+              <CardDescription className="text-xs">
+                Current balance (with transactions)
+              </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-green-600">
                 $
                 {accounts
                   .filter((a) => a.type === "checking" || a.type === "savings")
-                  .reduce((sum, a) => sum + a.balance, 0)
+                  .reduce(
+                    (sum, a) => sum + (a.calculatedBalance ?? a.balance),
+                    0
+                  )
                   .toLocaleString("en-US", { minimumFractionDigits: 2 })}
               </div>
             </CardContent>
@@ -417,9 +411,17 @@ export default function AccountsPage() {
                   <TableRow>
                     <TableHead>Account</TableHead>
                     <TableHead>Type</TableHead>
-                    <TableHead className="text-right">Stored Balance</TableHead>
-                    <TableHead className="text-right">
-                      Calculated Balance
+                    <TableHead
+                      className="text-right"
+                      title="Opening balance (before any transactions)"
+                    >
+                      Opening Balance
+                    </TableHead>
+                    <TableHead
+                      className="text-right"
+                      title="Current balance (opening + all transactions)"
+                    >
+                      Current Balance
                     </TableHead>
                     <TableHead className="text-right">APR</TableHead>
                     <TableHead className="text-right">Min Payment</TableHead>
@@ -504,22 +506,6 @@ export default function AccountsPage() {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
-                          {account.calculatedBalance !== undefined &&
-                            Math.abs(account.balanceDifference ?? 0) > 0.01 && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() =>
-                                  handleSyncBalance(
-                                    account.id,
-                                    account.calculatedBalance!
-                                  )
-                                }
-                                title="Sync stored balance to calculated balance"
-                              >
-                                <RefreshCw className="h-4 w-4" />
-                              </Button>
-                            )}
                           <Button
                             variant="ghost"
                             size="sm"

@@ -12,7 +12,6 @@ import {
   Legend,
   ResponsiveContainer,
 } from "recharts";
-import { ExpenseStorage } from "@/lib/storage";
 
 interface ChartData {
   month: string;
@@ -34,15 +33,33 @@ export function MonthlyChart() {
       for (let i = 5; i >= 0; i--) {
         const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
         const monthName = date.toLocaleDateString("en-US", { month: "short" });
-        const monthExpenses = await ExpenseStorage.getByMonth(
-          date.getFullYear(),
-          date.getMonth()
+        const monthStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+
+        // Fetch expenses
+        const expenseRes = await fetch(
+          `/api/transactions?type=expense&month=${monthStr}`
         );
-        const expenses = monthExpenses.reduce((sum, e) => sum + e.amount, 0);
+        const expenses = expenseRes.ok
+          ? (await expenseRes.json()).reduce(
+              (sum: number, t: any) => sum + Math.abs(t.amount),
+              0
+            )
+          : 0;
+
+        // Fetch income
+        const incomeRes = await fetch(
+          `/api/transactions?type=income_deposit&month=${monthStr}`
+        );
+        const income = incomeRes.ok
+          ? (await incomeRes.json()).reduce(
+              (sum: number, t: any) => sum + Math.abs(t.amount),
+              0
+            )
+          : 0;
 
         chartData.push({
           month: monthName,
-          income: 0, // TODO: Will be populated when income feature is implemented
+          income,
           expenses,
         });
       }
