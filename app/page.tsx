@@ -12,6 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RecentTransactions } from "@/components/recent-transactions";
 import { MonthlyChart } from "@/components/monthly-chart";
 import { ExpenseBreakdown } from "@/components/expense-breakdown";
+import { TransferDialog } from "@/components/transfer-dialog";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
@@ -170,11 +171,14 @@ export default async function DashboardPage() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-        <p className="text-gray-600 dark:text-gray-400">
-          Overview of your financial status
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
+          <p className="text-gray-600 dark:text-gray-400">
+            Overview of your financial status
+          </p>
+        </div>
+        <TransferDialog />
       </div>
 
       {/* Stats Grid */}

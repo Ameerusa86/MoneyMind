@@ -19,12 +19,13 @@ A modern, full-stack personal finance management application built with Next.js 
 
 ### 💸 Comprehensive Financial Management
 
-- **Income Tracking**: Multiple income streams with pay schedule automation
-- **Expense Management**: Categorized expense tracking with visual breakdowns
-- **Bill Tracking**: Never miss a payment with due date reminders
-- **Credit Cards**: Monitor balances, credit limits, and utilization rates
-- **Loans**: Track mortgages, auto loans, student loans, and personal loans
-- **Accounts**: Manage checking, savings, and investment accounts
+- **Income Tracking**: Multiple income streams with bi-weekly pay schedule automation for you and your spouse
+- **Expense Management**: Categorized expense tracking with advanced filtering, sorting, and search
+- **Bill Tracking**: Never miss a payment with due date reminders and automatic posting
+- **Credit Cards**: Monitor balances with real-time calculation; refunds properly reduce card balance
+- **Loans**: Track mortgages, auto loans, student loans with payment/interest handling
+- **Accounts**: Manage checking, savings accounts with proper sign interpretation
+- **Transfers**: Quick transfer dialog to move money between accounts seamlessly
 
 ### 🔐 Authentication & Security
 
@@ -35,10 +36,11 @@ A modern, full-stack personal finance management application built with Next.js 
 
 ### 📈 Advanced Features
 
-- **Payment Planner**: Strategic bill payment scheduling
-- **Pay Period Management**: Automatic pay period generation
-- **Balance Tracking**: Real-time account balance updates
-- **Transaction History**: Complete audit trail of all financial activities
+- **Payment Planner**: Allocate paycheck across bills and debts; **Post Payments** to create transactions and mark bills paid automatically
+- **Pay Period Management**: Bi-weekly pay schedule support for multiple earners (you + spouse)
+- **Balance Tracking**: Real-time account balance calculation from transaction history
+- **Transaction History**: Complete audit trail with CSV import and duplicate detection
+- **CSV Import**: Smart sign interpretation per account type (checking, credit, loan)
 - **Reports**: Generate insights on spending patterns
 
 ### 🎨 Modern UI/UX

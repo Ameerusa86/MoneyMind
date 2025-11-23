@@ -233,6 +233,103 @@ export default function PaymentPlannerPage() {
     alert("Plan saved.");
   };
 
+  const handlePostPayments = async () => {
+    if (!payPeriodId) {
+      alert("No pay period selected.");
+      return;
+    }
+
+    if (plannedForPeriod.length === 0) {
+      alert("No planned payments to post. Save a plan first.");
+      return;
+    }
+
+    if (
+      !confirm(
+        "Post all planned payments as transactions? This will create payment transactions and mark bills as paid."
+      )
+    ) {
+      return;
+    }
+
+    try {
+      const today = new Date().toISOString().split("T")[0];
+      const transactionPromises: Promise<Response>[] = [];
+      const billUpdatePromises: Promise<boolean>[] = [];
+
+      // Create transactions for each planned payment
+      for (const planned of plannedForPeriod) {
+        // Determine from/to accounts based on payment type
+        let fromAccountId: string | undefined;
+        let toAccountId: string | undefined;
+        let description = "";
+
+        if (planned.billId) {
+          // Bill payment
+          const bill = bills.find((b) => b.id === planned.billId);
+          if (bill) {
+            description = `Payment: ${bill.name}`;
+            if (bill.accountId) {
+              // Payment TO the bill's linked account (e.g., credit card, loan)
+              toAccountId = bill.accountId;
+            }
+          }
+          // Mark bill as paid
+          billUpdatePromises.push(
+            BillStorage.update(planned.billId, { isPaid: true })
+          );
+        } else if (planned.accountId) {
+          // Extra debt payment
+          const account = accounts.find((a) => a.id === planned.accountId);
+          if (account) {
+            description = `Extra payment: ${account.name}`;
+            toAccountId = planned.accountId;
+          }
+        }
+
+        // Create payment transaction
+        const txPromise = fetch("/api/transactions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            type: "payment",
+            fromAccountId,
+            toAccountId,
+            amount: planned.amount,
+            date: today,
+            description,
+            metadata: {
+              payPeriodId: planned.payPeriodId,
+              plannedPaymentId: planned.id,
+            },
+          }),
+        });
+
+        transactionPromises.push(txPromise);
+      }
+
+      // Wait for all transactions and bill updates
+      await Promise.all([...transactionPromises, ...billUpdatePromises]);
+
+      // Mark planned payments as executed
+      for (const p of plannedForPeriod) {
+        await PlannedPaymentStorage.update(p.id, {
+          executedAt: new Date().toISOString(),
+        });
+      }
+
+      // Reload data
+      await loadAll();
+
+      alert(
+        `Successfully posted ${plannedForPeriod.length} payment(s) and marked bills as paid!`
+      );
+    } catch (error) {
+      console.error("Error posting payments:", error);
+      alert("Failed to post some payments. Check console for details.");
+    }
+  };
+
   return (
     <div className="container mx-auto py-8 px-4">
       <div className="max-w-6xl mx-auto space-y-6">
@@ -242,6 +339,25 @@ export default function PaymentPlannerPage() {
             Allocate your next paycheck across upcoming bills and debts.
           </p>
         </div>
+
+        {plannedForPeriod.length > 0 &&
+          plannedForPeriod.every((p) => p.executedAt) && (
+            <Card className="border-green-600 bg-green-50 dark:bg-green-950/20">
+              <CardContent className="pt-6">
+                <div className="flex items-center gap-2 text-green-700 dark:text-green-400">
+                  <span className="text-2xl">✓</span>
+                  <div>
+                    <p className="font-semibold">All payments posted!</p>
+                    <p className="text-sm">
+                      {plannedForPeriod.length} payment(s) have been
+                      successfully posted as transactions and bills marked as
+                      paid.
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
@@ -293,16 +409,26 @@ export default function PaymentPlannerPage() {
                   <TableBody>
                     {upcomingBills.map((b) => {
                       const suggested = suggestedAmount(b);
+                      const planned = plannedForPeriod.find(
+                        (p) => p.billId === b.id
+                      );
                       const val =
-                        allocations[b.id] ??
-                        plannedForPeriod
-                          .find((p) => p.billId === b.id)
-                          ?.amount?.toString() ??
-                        "";
+                        allocations[b.id] ?? planned?.amount?.toString() ?? "";
+                      const isPosted = planned?.executedAt;
                       return (
-                        <TableRow key={b.id}>
+                        <TableRow
+                          key={b.id}
+                          className={
+                            isPosted ? "bg-green-50 dark:bg-green-950/20" : ""
+                          }
+                        >
                           <TableCell className="font-medium">
                             {b.name}
+                            {isPosted && (
+                              <span className="ml-2 text-xs text-green-600 dark:text-green-400">
+                                ✓ Posted
+                              </span>
+                            )}
                           </TableCell>
                           <TableCell>Day {b.dueDay}</TableCell>
                           <TableCell>
@@ -320,6 +446,7 @@ export default function PaymentPlannerPage() {
                               placeholder={
                                 suggested > 0 ? suggested.toFixed(2) : "0.00"
                               }
+                              disabled={!!isPosted}
                             />
                           </TableCell>
                         </TableRow>
@@ -351,16 +478,28 @@ export default function PaymentPlannerPage() {
                   </TableHeader>
                   <TableBody>
                     {debtAccounts.map((a) => {
+                      const planned = plannedForPeriod.find(
+                        (p) => p.accountId === a.id && !p.billId
+                      );
                       const val =
                         extraDebtAlloc[a.id] ??
-                        plannedForPeriod
-                          .find((p) => p.accountId === a.id && !p.billId)
-                          ?.amount?.toString() ??
+                        planned?.amount?.toString() ??
                         "";
+                      const isPosted = planned?.executedAt;
                       return (
-                        <TableRow key={a.id}>
+                        <TableRow
+                          key={a.id}
+                          className={
+                            isPosted ? "bg-green-50 dark:bg-green-950/20" : ""
+                          }
+                        >
                           <TableCell className="font-medium">
                             {a.name}
+                            {isPosted && (
+                              <span className="ml-2 text-xs text-green-600 dark:text-green-400">
+                                ✓ Posted
+                              </span>
+                            )}
                           </TableCell>
                           <TableCell className="capitalize">{a.type}</TableCell>
                           <TableCell>{currency(a.balance)}</TableCell>
@@ -374,6 +513,7 @@ export default function PaymentPlannerPage() {
                                 updateDebtAllocation(a.id, e.target.value)
                               }
                               placeholder="0.00"
+                              disabled={!!isPosted}
                             />
                           </TableCell>
                         </TableRow>
@@ -392,14 +532,30 @@ export default function PaymentPlannerPage() {
               >
                 {overAllocated
                   ? "Over-allocated. Reduce amounts before saving."
-                  : "You can save this plan and revisit anytime."}
+                  : plannedForPeriod.length > 0 &&
+                      plannedForPeriod.some((p) => p.executedAt)
+                    ? "Some payments already posted."
+                    : "You can save this plan and revisit anytime."}
               </div>
-              <Button
-                onClick={handleSave}
-                disabled={!paySchedule || overAllocated}
-              >
-                Save Plan
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  onClick={handleSave}
+                  disabled={!paySchedule || overAllocated}
+                  variant="outline"
+                >
+                  Save Plan
+                </Button>
+                <Button
+                  onClick={handlePostPayments}
+                  disabled={
+                    !paySchedule ||
+                    plannedForPeriod.length === 0 ||
+                    plannedForPeriod.some((p) => p.executedAt)
+                  }
+                >
+                  Post Payments
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>
