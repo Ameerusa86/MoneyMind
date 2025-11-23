@@ -42,7 +42,18 @@ export async function POST(req: NextRequest) {
     }
 
     const csvText = await file.text();
-    const rows = parseCsvTextToTransactions(csvText);
+
+    // Fetch account type if accountId is provided
+    let accountType: "checking" | "savings" | "credit" | "loan" = "checking";
+    if (accountId) {
+      const account = await Account.findOne({ _id: accountId, userId });
+      if (!account) {
+        return errorResponse("Invalid account ID", 400);
+      }
+      accountType = account.type as "checking" | "savings" | "credit" | "loan";
+    }
+
+    const rows = parseCsvTextToTransactions(csvText, { accountType });
 
     if (!rows.length) {
       const nonEmptyLines = csvText

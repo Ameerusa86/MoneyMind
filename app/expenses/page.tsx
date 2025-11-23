@@ -39,6 +39,10 @@ import {
   Film,
   Trash2,
   Pencil,
+  Search,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { formatCurrency, formatDate } from "@/lib/utils";
@@ -104,6 +108,15 @@ export default function ExpensesPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Filter and sort state
+  const [searchQuery, setSearchQuery] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState<string>("all");
+  const [accountFilter, setAccountFilter] = useState<string>("all");
+  const [sortField, setSortField] = useState<"date" | "amount" | "description">(
+    "date"
+  );
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
 
   const [formData, setFormData] = useState({
     description: "",
@@ -174,7 +187,7 @@ export default function ExpensesPage() {
     loadData();
   }, []);
 
-  /* ------------ Derived values - show all expenses ------------ */
+  /* ------------ Derived values - filter, sort, and search ------------ */
 
   const now = new Date();
   const currentMonthExpenses = transactions.filter((t) => {
@@ -184,11 +197,50 @@ export default function ExpensesPage() {
     );
   });
 
-  // If no data for current month, show most recent month
-  const displayExpenses =
-    currentMonthExpenses.length > 0
-      ? currentMonthExpenses
-      : transactions.slice(0, 50); // Show up to 50 most recent
+  // Apply filters and search
+  let filteredExpenses = transactions.filter((txn) => {
+    // Search filter
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      const matchesDescription = txn.description?.toLowerCase().includes(query);
+      const matchesAmount = txn.amount.toString().includes(query);
+      if (!matchesDescription && !matchesAmount) return false;
+    }
+
+    // Category filter
+    if (categoryFilter !== "all") {
+      if ((txn.category || "other") !== categoryFilter) return false;
+    }
+
+    // Account filter
+    if (accountFilter !== "all") {
+      const accountId = txn.fromAccountId || txn.toAccountId;
+      if (accountId !== accountFilter) return false;
+    }
+
+    return true;
+  });
+
+  // Apply sorting
+  filteredExpenses = [...filteredExpenses].sort((a, b) => {
+    let comparison = 0;
+
+    switch (sortField) {
+      case "date":
+        comparison = new Date(a.date).getTime() - new Date(b.date).getTime();
+        break;
+      case "amount":
+        comparison = a.amount - b.amount;
+        break;
+      case "description":
+        comparison = (a.description || "").localeCompare(b.description || "");
+        break;
+    }
+
+    return sortDirection === "asc" ? comparison : -comparison;
+  });
+
+  const displayExpenses = filteredExpenses;
 
   const totalExpenses = displayExpenses.reduce(
     (sum, t) => sum + Math.abs(t.amount),
@@ -206,12 +258,7 @@ export default function ExpensesPage() {
   );
 
   // Determine display period
-  const displayPeriod =
-    currentMonthExpenses.length > 0
-      ? "This month"
-      : transactions.length > 0
-        ? "Recent"
-        : "No data";
+  const displayPeriod = transactions.length > 0 ? "All time" : "No data";
 
   /* ------------ Form handlers ------------ */
 
@@ -468,6 +515,94 @@ export default function ExpensesPage() {
 
       {error && <p className="text-sm text-red-500">{error}</p>}
 
+      {/* Filter and Search Controls */}
+      <Card>
+        <CardContent className="pt-6">
+          <div className="grid gap-4 md:grid-cols-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Search</label>
+              <div className="relative">
+                <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search description or amount..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-8"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Category</label>
+              <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                <SelectTrigger>
+                  <SelectValue placeholder="All categories" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Categories</SelectItem>
+                  {Object.entries(categoryLabels).map(([key, label]) => (
+                    <SelectItem key={key} value={key}>
+                      {label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Account</label>
+              <Select value={accountFilter} onValueChange={setAccountFilter}>
+                <SelectTrigger>
+                  <SelectValue placeholder="All accounts" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Accounts</SelectItem>
+                  {accounts.map((account) => (
+                    <SelectItem key={account.id} value={account.id}>
+                      {account.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Sort By</label>
+              <div className="flex gap-2">
+                <Select
+                  value={sortField}
+                  onValueChange={(value) =>
+                    setSortField(value as "date" | "amount" | "description")
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="date">Date</SelectItem>
+                    <SelectItem value="amount">Amount</SelectItem>
+                    <SelectItem value="description">Description</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() =>
+                    setSortDirection(sortDirection === "asc" ? "desc" : "asc")
+                  }
+                >
+                  {sortDirection === "asc" ? (
+                    <ArrowUp className="h-4 w-4" />
+                  ) : (
+                    <ArrowDown className="h-4 w-4" />
+                  )}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Summary cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
@@ -506,15 +641,13 @@ export default function ExpensesPage() {
           <CardContent>
             <div className="text-2xl font-bold">
               {formatCurrency(
-                displayExpenses.length > 0 && currentMonthExpenses.length > 0
+                currentMonthExpenses.length > 0
                   ? totalExpenses / now.getDate()
-                  : displayExpenses.length > 0
-                    ? totalExpenses / Math.max(displayExpenses.length, 1)
-                    : 0
+                  : 0
               )}
             </div>
             <p className="text-xs text-muted-foreground">
-              {currentMonthExpenses.length > 0 ? "Per day" : "Average"}
+              {currentMonthExpenses.length > 0 ? "This month avg" : "N/A"}
             </p>
           </CardContent>
         </Card>
@@ -579,7 +712,17 @@ export default function ExpensesPage() {
       {/* Table */}
       <Card>
         <CardHeader>
-          <CardTitle>Expense Transactions</CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle>Expense Transactions</CardTitle>
+            {(searchQuery ||
+              categoryFilter !== "all" ||
+              accountFilter !== "all") && (
+              <p className="text-sm text-muted-foreground">
+                Showing {displayExpenses.length} of {transactions.length}{" "}
+                transactions
+              </p>
+            )}
+          </div>
         </CardHeader>
         <CardContent>
           {loading ? (
@@ -596,16 +739,97 @@ export default function ExpensesPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Description</TableHead>
+                    <TableHead>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 -ml-3"
+                        onClick={() => {
+                          if (sortField === "date") {
+                            setSortDirection(
+                              sortDirection === "asc" ? "desc" : "asc"
+                            );
+                          } else {
+                            setSortField("date");
+                            setSortDirection("desc");
+                          }
+                        }}
+                      >
+                        Date
+                        {sortField === "date" &&
+                          (sortDirection === "asc" ? (
+                            <ArrowUp className="ml-1 h-3 w-3" />
+                          ) : (
+                            <ArrowDown className="ml-1 h-3 w-3" />
+                          ))}
+                        {sortField !== "date" && (
+                          <ArrowUpDown className="ml-1 h-3 w-3 opacity-50" />
+                        )}
+                      </Button>
+                    </TableHead>
+                    <TableHead>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 -ml-3"
+                        onClick={() => {
+                          if (sortField === "description") {
+                            setSortDirection(
+                              sortDirection === "asc" ? "desc" : "asc"
+                            );
+                          } else {
+                            setSortField("description");
+                            setSortDirection("asc");
+                          }
+                        }}
+                      >
+                        Description
+                        {sortField === "description" &&
+                          (sortDirection === "asc" ? (
+                            <ArrowUp className="ml-1 h-3 w-3" />
+                          ) : (
+                            <ArrowDown className="ml-1 h-3 w-3" />
+                          ))}
+                        {sortField !== "description" && (
+                          <ArrowUpDown className="ml-1 h-3 w-3 opacity-50" />
+                        )}
+                      </Button>
+                    </TableHead>
                     <TableHead>Category</TableHead>
                     <TableHead>Account</TableHead>
-                    <TableHead className="text-right">Amount</TableHead>
+                    <TableHead className="text-right">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 -mr-3"
+                        onClick={() => {
+                          if (sortField === "amount") {
+                            setSortDirection(
+                              sortDirection === "asc" ? "desc" : "asc"
+                            );
+                          } else {
+                            setSortField("amount");
+                            setSortDirection("desc");
+                          }
+                        }}
+                      >
+                        Amount
+                        {sortField === "amount" &&
+                          (sortDirection === "asc" ? (
+                            <ArrowUp className="ml-1 h-3 w-3" />
+                          ) : (
+                            <ArrowDown className="ml-1 h-3 w-3" />
+                          ))}
+                        {sortField !== "amount" && (
+                          <ArrowUpDown className="ml-1 h-3 w-3 opacity-50" />
+                        )}
+                      </Button>
+                    </TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {transactions.map((txn) => {
+                  {displayExpenses.map((txn) => {
                     const accountId = txn.fromAccountId || txn.toAccountId;
                     const account = accountId
                       ? accounts.find((a) => a.id === accountId) || null

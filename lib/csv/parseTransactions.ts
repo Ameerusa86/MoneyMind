@@ -1,5 +1,5 @@
 // lib/csv/parseTransactions.ts
-import { TransactionType } from "../types";
+import { TransactionType, AccountType } from "../types";
 
 export interface CsvTransactionRow {
   date: string;
@@ -10,6 +10,10 @@ export interface CsvTransactionRow {
   fromAccountId?: string;
   toAccountId?: string;
   metadata?: Record<string, any>;
+}
+
+export interface ParseOptions {
+  accountType?: AccountType;
 }
 
 // CSV line parser that handles quoted fields with commas
@@ -45,7 +49,10 @@ function parseCsvLine(line: string): string[] {
   return result;
 }
 
-export function parseCsvTextToTransactions(text: string): CsvTransactionRow[] {
+export function parseCsvTextToTransactions(
+  text: string,
+  options?: ParseOptions
+): CsvTransactionRow[] {
   // Normalize BOM and line endings
   const cleaned = text.replace(/^\uFEFF/, "");
   const lines = cleaned.split(/\r?\n/).filter((l) => l.trim().length > 0);
@@ -65,6 +72,7 @@ export function parseCsvTextToTransactions(text: string): CsvTransactionRow[] {
     return [];
   }
 
+  const accountType = options?.accountType || "checking";
   const result: CsvTransactionRow[] = [];
 
   for (let i = 1; i < lines.length; i++) {
@@ -97,25 +105,59 @@ export function parseCsvTextToTransactions(text: string): CsvTransactionRow[] {
     const description = row[descriptionIdx] || "";
     const descLower = description.toLowerCase();
 
-    // NEW LOGIC: Positive = Expense, Negative = Income/Deposit
+    // Account-type specific sign interpretation
     let type: TransactionType;
     let finalAmount: number;
 
-    if (amount > 0) {
-      // Positive amount = expense (money spent)
-      type = "expense";
-      finalAmount = amount;
-    } else {
-      // Negative amount = income/deposit (money received)
-      // Convert to positive for storage
-      finalAmount = Math.abs(amount);
-
-      // Try to classify the type of income based on description
-      if (/payment|pmt|repay|refund/.test(descLower)) {
-        type = "payment"; // This is a refund/payment received
+    if (accountType === "checking" || accountType === "savings") {
+      // CHECKING/SAVINGS: Negative = Payment/Expense, Positive = Refund/Income
+      if (amount < 0) {
+        // Negative = money out (payment/expense)
+        finalAmount = Math.abs(amount);
+        if (/payment|pmt|bill pay/.test(descLower)) {
+          type = "payment";
+        } else {
+          type = "expense";
+        }
       } else {
-        type = "income_deposit"; // Regular income/deposit
+        // Positive = money in (refund/income)
+        finalAmount = amount;
+        if (/refund|credit|return/.test(descLower)) {
+          type = "payment"; // refund treated as payment type
+        } else {
+          type = "income_deposit";
+        }
       }
+    } else if (accountType === "credit") {
+      // CREDIT CARD: Positive = Expense, Negative = Payment/Refund
+      if (amount > 0) {
+        // Positive = expense (charge)
+        finalAmount = amount;
+        type = "expense";
+      } else {
+        // Negative = payment or refund
+        finalAmount = Math.abs(amount);
+        if (/refund|credit|return/.test(descLower)) {
+          type = "payment"; // refund
+        } else {
+          type = "payment"; // payment toward balance
+        }
+      }
+    } else if (accountType === "loan") {
+      // LOAN: Negative = Payment, Positive = Interest
+      if (amount < 0) {
+        // Negative = payment toward loan
+        finalAmount = Math.abs(amount);
+        type = "payment";
+      } else {
+        // Positive = interest charge
+        finalAmount = amount;
+        type = "expense"; // Interest treated as expense
+      }
+    } else {
+      // Fallback (shouldn't happen with proper account types)
+      finalAmount = Math.abs(amount);
+      type = amount < 0 ? "payment" : "expense";
     }
 
     result.push({
