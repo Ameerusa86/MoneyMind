@@ -104,10 +104,32 @@ export default function ExpensesPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
 
   const [transactions, setTransactions] = useState<TransactionDto[]>([]);
+  // Holds payment transactions with metadata.refundFor; kept only if we later surface details per refund
+  // Currently unused beyond mapping; can remove if not needed
+  const [refundPayments, setRefundPayments] = useState<TransactionDto[]>([]); // eslint-disable-line @typescript-eslint/no-unused-vars
+  const [refundMap, setRefundMap] = useState<
+    Record<string, { totalRefund: number; payments: TransactionDto[] }>
+  >({});
   const [accounts, setAccounts] = useState<AccountDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [refundSaving, setRefundSaving] = useState(false);
+  const [refundError, setRefundError] = useState<string | null>(null);
+
+  // AI suggestions state
+  const [suggestions, setSuggestions] = useState<
+    Record<
+      string,
+      {
+        loading: boolean;
+        category?: string;
+        confidence?: number;
+        method?: string;
+        error?: string;
+      }
+    >
+  >({});
 
   // Filter and sort state
   const [searchQuery, setSearchQuery] = useState("");
@@ -126,27 +148,45 @@ export default function ExpensesPage() {
     accountId: "",
   });
 
+  // Refund dialog state
+  const [isRefundDialogOpen, setIsRefundDialogOpen] = useState(false);
+  const [refundSourceTxn, setRefundSourceTxn] = useState<TransactionDto | null>(
+    null
+  );
+  const [refundForm, setRefundForm] = useState({
+    amount: "",
+    date: new Date().toISOString().split("T")[0],
+    description: "",
+    accountId: "",
+  });
+
   /* ------------ Load data from APIs ------------ */
 
   const loadData = async () => {
     setLoading(true);
     setError(null);
     try {
-      const [txRes, accRes] = await Promise.all([
+      const [expenseRes, paymentRes, accRes] = await Promise.all([
         fetch("/api/transactions?type=expense"),
+        fetch("/api/transactions?type=payment"),
         fetch("/api/accounts"),
       ]);
 
-      if (!txRes.ok) {
-        const j = await txRes.json().catch(() => ({}));
+      if (!expenseRes.ok) {
+        const j = await expenseRes.json().catch(() => ({}));
         throw new Error(j.error || "Failed to load expenses");
+      }
+      if (!paymentRes.ok) {
+        const j = await paymentRes.json().catch(() => ({}));
+        throw new Error(j.error || "Failed to load payments");
       }
       if (!accRes.ok) {
         const j = await accRes.json().catch(() => ({}));
         throw new Error(j.error || "Failed to load accounts");
       }
 
-      const txJson = (await txRes.json()) as TransactionDto[];
+      const expenseJson = (await expenseRes.json()) as TransactionDto[];
+      const paymentJson = (await paymentRes.json()) as TransactionDto[];
       const accJsonRaw = (await accRes.json()) as unknown[];
       const accJson: AccountDto[] = (accJsonRaw || []).map((raw) => {
         const a = raw as {
@@ -165,16 +205,37 @@ export default function ExpensesPage() {
       });
 
       // Sort by date desc, then createdAt desc
-      txJson.sort((a, b) => {
+      expenseJson.sort((a, b) => {
         const d = new Date(b.date).getTime() - new Date(a.date).getTime();
         if (d !== 0) return d;
         return (
           new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
         );
       });
-
-      setTransactions(txJson);
+      setTransactions(expenseJson);
+      setRefundPayments(
+        paymentJson.filter(
+          (p) => p.metadata && (p.metadata as Record<string, unknown>).refundFor
+        )
+      );
       setAccounts(accJson);
+
+      // Build refund map from payment transactions referencing refundFor
+      const map: Record<
+        string,
+        { totalRefund: number; payments: TransactionDto[] }
+      > = {};
+      for (const pay of paymentJson) {
+        const meta = pay.metadata as Record<string, unknown> | undefined;
+        const refFor =
+          meta && typeof meta.refundFor === "string" ? meta.refundFor : null;
+        if (refFor) {
+          if (!map[refFor]) map[refFor] = { totalRefund: 0, payments: [] };
+          map[refFor].totalRefund += Math.abs(pay.amount);
+          map[refFor].payments.push(pay);
+        }
+      }
+      setRefundMap(map);
     } catch (err) {
       console.error(err);
       setError(err instanceof Error ? err.message : "Failed to load data");
@@ -365,6 +426,182 @@ export default function ExpensesPage() {
     }
   };
 
+  // AI SUGGESTIONS
+  const normalizeSuggestedCategory = (raw: string): ExpenseCategory => {
+    switch (raw) {
+      case "groceries":
+      case "dining":
+      case "utilities":
+      case "entertainment":
+        return raw;
+      case "transport":
+      case "transportation":
+        return "transportation";
+      case "medical":
+      case "healthcare":
+        return "healthcare";
+      case "insurance":
+        return "insurance";
+      case "rent":
+      case "housing":
+        return "housing";
+      case "clothing":
+      case "shopping":
+        return "shopping";
+      case "debt":
+      case "payment":
+        return "debt";
+      case "savings":
+        return "savings";
+      default:
+        return "other";
+    }
+  };
+
+  const handleSuggest = async (txn: TransactionDto) => {
+    setSuggestions((s) => ({ ...s, [txn.id]: { loading: true } }));
+    try {
+      const res = await fetch("/api/ai/categorize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          description: txn.description,
+          amount: txn.amount,
+        }),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error(j.error || "Suggest failed");
+      }
+      const data = (await res.json()) as {
+        category: string;
+        confidence: number;
+        method: string;
+      };
+      setSuggestions((s) => ({
+        ...s,
+        [txn.id]: {
+          loading: false,
+          category: data.category,
+          confidence: data.confidence,
+          method: data.method,
+        },
+      }));
+    } catch (err) {
+      setSuggestions((s) => ({
+        ...s,
+        [txn.id]: {
+          loading: false,
+          error: err instanceof Error ? err.message : "Unknown error",
+        },
+      }));
+    }
+  };
+
+  const handleAcceptSuggestion = async (txn: TransactionDto) => {
+    const sug = suggestions[txn.id];
+    if (!sug || !sug.category) return;
+    const normalized = normalizeSuggestedCategory(sug.category);
+    try {
+      const res = await fetch(`/api/transactions/${txn.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ category: normalized }),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error(j.error || "Update failed");
+      }
+      await loadData();
+      setSuggestions((s) => ({
+        ...s,
+        [txn.id]: { ...s[txn.id], category: undefined, confidence: undefined },
+      }));
+    } catch (err) {
+      setSuggestions((s) => ({
+        ...s,
+        [txn.id]: {
+          loading: false,
+          error: err instanceof Error ? err.message : "Unknown error",
+        },
+      }));
+    }
+  };
+
+  const handleDismissSuggestion = (id: string) => {
+    setSuggestions((s) => ({ ...s, [id]: { loading: false } }));
+  };
+
+  // REFUND LOGIC
+  const openRefundDialog = (txn: TransactionDto) => {
+    setRefundSourceTxn(txn);
+    setRefundForm({
+      amount: txn.amount.toString(),
+      date: new Date().toISOString().split("T")[0],
+      description: `Refund: ${txn.description || ""}`.trim(),
+      accountId: txn.fromAccountId || "",
+    });
+    setRefundError(null);
+    setIsRefundDialogOpen(true);
+  };
+
+  const resetRefundDialog = () => {
+    setRefundSourceTxn(null);
+    setRefundForm({
+      amount: "",
+      date: new Date().toISOString().split("T")[0],
+      description: "",
+      accountId: "",
+    });
+    setRefundSaving(false);
+    setRefundError(null);
+  };
+
+  const handleRefundSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!refundSourceTxn) return;
+    if (!refundForm.amount || !refundForm.date || !refundForm.accountId) {
+      setRefundError("Please fill required fields");
+      return;
+    }
+    setRefundSaving(true);
+    setRefundError(null);
+    try {
+      const amt = parseFloat(refundForm.amount);
+      const partial = amt !== refundSourceTxn.amount;
+      const payload = {
+        type: "payment",
+        amount: amt,
+        date: refundForm.date,
+        description:
+          refundForm.description ||
+          `Refund: ${refundSourceTxn.description || ""}`.trim(),
+        toAccountId: refundForm.accountId,
+        metadata: {
+          refundFor: refundSourceTxn.id,
+          originalAmount: refundSourceTxn.amount,
+          partial,
+        },
+      };
+      const res = await fetch("/api/transactions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error(j.error || "Failed to create refund");
+      }
+      resetRefundDialog();
+      setIsRefundDialogOpen(false);
+      await loadData();
+    } catch (err) {
+      setRefundError(err instanceof Error ? err.message : "Unknown error");
+    } finally {
+      setRefundSaving(false);
+    }
+  };
+
   /* ------------ UI ------------ */
 
   return (
@@ -373,8 +610,9 @@ export default function ExpensesPage() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Expenses</h1>
           <p className="text-muted-foreground">
-            Track and categorize all expense transactions (including CSV
-            imports)
+            Track purchases and charges. Use Mark Refund when a merchant issues
+            a credit. For debt payments or general card/loan payments go to the
+            Payments page.
           </p>
         </div>
 
@@ -714,6 +952,13 @@ export default function ExpensesPage() {
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle>Expense Transactions</CardTitle>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => (window.location.href = "/payments")}
+            >
+              Go to Payments
+            </Button>
             {(searchQuery ||
               categoryFilter !== "all" ||
               accountFilter !== "all") && (
@@ -826,6 +1071,8 @@ export default function ExpensesPage() {
                       </Button>
                     </TableHead>
                     <TableHead className="text-right">Actions</TableHead>
+                    <TableHead className="text-right">AI</TableHead>
+                    <TableHead className="text-right">Refund</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -834,6 +1081,11 @@ export default function ExpensesPage() {
                     const account = accountId
                       ? accounts.find((a) => a.id === accountId) || null
                       : null;
+                    const refundInfo = refundMap[txn.id];
+                    const refundedAmount = refundInfo?.totalRefund || 0;
+                    const fullyRefunded =
+                      refundedAmount >= Math.abs(txn.amount) - 0.009;
+                    const partialRefund = refundedAmount > 0 && !fullyRefunded;
 
                     return (
                       <TableRow key={txn.id}>
@@ -874,6 +1126,121 @@ export default function ExpensesPage() {
                             </Button>
                           </div>
                         </TableCell>
+                        <TableCell className="text-right">
+                          {(() => {
+                            const sug = suggestions[txn.id];
+                            const uncategorized =
+                              !txn.category || txn.category === "other";
+                            if (!uncategorized && !sug)
+                              return (
+                                <span className="text-xs text-muted-foreground">
+                                  -
+                                </span>
+                              );
+                            if (sug?.loading)
+                              return (
+                                <span className="text-xs">Suggesting...</span>
+                              );
+                            if (sug?.error)
+                              return (
+                                <div className="flex flex-col items-end gap-1">
+                                  <span className="text-xs text-red-500">
+                                    {sug.error}
+                                  </span>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => handleSuggest(txn)}
+                                  >
+                                    Retry
+                                  </Button>
+                                </div>
+                              );
+                            if (sug?.category) {
+                              return (
+                                <div className="flex flex-col items-end gap-1">
+                                  <Badge
+                                    variant="outline"
+                                    className="max-w-[110px] truncate"
+                                  >
+                                    {sug.category}{" "}
+                                    {sug.confidence !== undefined &&
+                                      `(${(sug.confidence * 100).toFixed(0)}%)`}
+                                  </Badge>
+                                  <div className="flex gap-1">
+                                    <Button
+                                      size="sm"
+                                      variant="secondary"
+                                      onClick={() =>
+                                        handleAcceptSuggestion(txn)
+                                      }
+                                    >
+                                      Accept
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      onClick={() =>
+                                        handleDismissSuggestion(txn.id)
+                                      }
+                                    >
+                                      Dismiss
+                                    </Button>
+                                  </div>
+                                </div>
+                              );
+                            }
+                            return (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleSuggest(txn)}
+                              >
+                                Suggest
+                              </Button>
+                            );
+                          })()}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {account?.type === "credit" ? (
+                            fullyRefunded ? (
+                              <Badge
+                                className="bg-green-600 text-white"
+                                variant="default"
+                              >
+                                Refunded
+                              </Badge>
+                            ) : partialRefund ? (
+                              <div className="flex flex-col items-end gap-1">
+                                <Badge
+                                  className="bg-amber-500 text-white"
+                                  variant="default"
+                                >
+                                  Partial {formatCurrency(refundedAmount)}
+                                </Badge>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => openRefundDialog(txn)}
+                                >
+                                  Add Refund
+                                </Button>
+                              </div>
+                            ) : (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => openRefundDialog(txn)}
+                              >
+                                Mark Refund
+                              </Button>
+                            )
+                          ) : (
+                            <span className="text-xs text-muted-foreground">
+                              -
+                            </span>
+                          )}
+                        </TableCell>
                       </TableRow>
                     );
                   })}
@@ -883,6 +1250,86 @@ export default function ExpensesPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Refund Dialog */}
+      <Dialog
+        open={isRefundDialogOpen}
+        onOpenChange={(open) => {
+          setIsRefundDialogOpen(open);
+          if (!open) resetRefundDialog();
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {refundSourceTxn ? "Refund for Expense" : "Refund"}
+            </DialogTitle>
+          </DialogHeader>
+          {refundError && <p className="text-sm text-red-500">{refundError}</p>}
+          <form onSubmit={handleRefundSubmit} className="space-y-4 py-2">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Amount *</label>
+              <Input
+                type="number"
+                step="0.01"
+                min="0"
+                value={refundForm.amount}
+                onChange={(e) =>
+                  setRefundForm({ ...refundForm, amount: e.target.value })
+                }
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Date *</label>
+              <Input
+                type="date"
+                value={refundForm.date}
+                onChange={(e) =>
+                  setRefundForm({ ...refundForm, date: e.target.value })
+                }
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Description</label>
+              <Input
+                value={refundForm.description}
+                onChange={(e) =>
+                  setRefundForm({ ...refundForm, description: e.target.value })
+                }
+                placeholder="Refund description"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Card Account *</label>
+              <Select
+                value={refundForm.accountId || undefined}
+                onValueChange={(v) =>
+                  setRefundForm({ ...refundForm, accountId: v })
+                }
+                required
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select credit card" />
+                </SelectTrigger>
+                <SelectContent>
+                  {accounts
+                    .filter((a) => a.type === "credit")
+                    .map((a) => (
+                      <SelectItem key={a.id} value={a.id}>
+                        {a.name}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <Button type="submit" className="w-full" disabled={refundSaving}>
+              {refundSaving ? "Saving..." : "Create Refund"}
+            </Button>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

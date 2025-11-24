@@ -20,6 +20,7 @@ import {
   LogOut,
   Settings,
   Upload,
+  DollarSign,
 } from "lucide-react";
 import { useState } from "react";
 import Image from "next/image";
@@ -50,6 +51,7 @@ const financeItems: NavItem[] = [
   { name: "Credit Cards", href: "/credit-cards", icon: CreditCard },
   { name: "Loans", href: "/loans", icon: Landmark },
   { name: "Bills", href: "/bills", icon: Landmark },
+  { name: "Payments", href: "/payments", icon: DollarSign },
   { name: "Payment Planner", href: "/payment-planner", icon: CalendarDays },
 ];
 
