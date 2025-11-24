@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -17,6 +18,7 @@ import {
   CheckCircle2,
   ArrowRight,
   CreditCard,
+  ExternalLink,
 } from "lucide-react";
 
 export default function PaydayPage() {
@@ -168,11 +170,19 @@ export default function PaydayPage() {
     <div className="container mx-auto py-8 px-4">
       <div className="max-w-6xl mx-auto space-y-6">
         {/* Header */}
-        <div>
-          <h1 className="text-3xl font-bold mb-2">Payday Session</h1>
-          <p className="text-muted-foreground">
-            Record income, review accounts, and execute payments
-          </p>
+        <div className="flex items-start justify-between">
+          <div>
+            <h1 className="text-3xl font-bold mb-2">Payday Session</h1>
+            <p className="text-muted-foreground">
+              Record income, review accounts, and execute payments
+            </p>
+          </div>
+          <Link href="/payments">
+            <Button variant="outline" size="sm">
+              <ExternalLink className="h-4 w-4 mr-2" />
+              Go to Payments
+            </Button>
+          </Link>
         </div>
 
         {/* Progress Indicator */}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,7 +31,7 @@ import {
 } from "@/components/ui/select";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import type { TransactionType } from "@/lib/types";
-import { Plus, RefreshCcw, Link2 } from "lucide-react";
+import { Plus, RefreshCcw, Link2, Calendar } from "lucide-react";
 
 interface TransactionDto {
   id: string;
@@ -243,6 +244,12 @@ export default function PaymentsPage() {
           </p>
         </div>
         <div className="flex gap-2">
+          <Link href="/payday">
+            <Button variant="outline" size="sm">
+              <Calendar className="h-4 w-4 mr-2" />
+              Payday Session
+            </Button>
+          </Link>
           <Button variant="outline" onClick={loadData}>
             <RefreshCcw className="h-4 w-4 mr-1" /> Refresh
           </Button>
