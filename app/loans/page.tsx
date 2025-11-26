@@ -43,6 +43,11 @@ export default function LoansPage() {
   const [interestInputs, setInterestInputs] = useState<Record<string, string>>(
     {}
   );
+  const [newLoanName, setNewLoanName] = useState("");
+  const [newLoanBalance, setNewLoanBalance] = useState("");
+  const [newLoanApr, setNewLoanApr] = useState("");
+  const [newLoanMinPayment, setNewLoanMinPayment] = useState("");
+  const [newLoanDueDay, setNewLoanDueDay] = useState("");
 
   useEffect(() => {
     const loadLoans = async () => {
@@ -100,40 +105,104 @@ export default function LoansPage() {
             <div className="space-y-4 py-4">
               <div className="space-y-2">
                 <label className="text-sm font-medium">Loan Name</label>
-                <Input placeholder="e.g., Home Mortgage" />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Loan Type</label>
-                <Select>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="mortgage">Mortgage</SelectItem>
-                    <SelectItem value="auto">Auto Loan</SelectItem>
-                    <SelectItem value="student">Student Loan</SelectItem>
-                    <SelectItem value="personal">Personal Loan</SelectItem>
-                    <SelectItem value="other">Other</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Principal Amount</label>
-                <Input type="number" placeholder="0.00" />
+                <Input
+                  placeholder="e.g., Home Mortgage"
+                  value={newLoanName}
+                  onChange={(e) => setNewLoanName(e.target.value)}
+                />
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-medium">Current Balance</label>
-                <Input type="number" placeholder="0.00" />
+                <Input
+                  type="number"
+                  inputMode="decimal"
+                  placeholder="0.00"
+                  value={newLoanBalance}
+                  onChange={(e) => setNewLoanBalance(e.target.value)}
+                />
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-medium">Interest Rate (%)</label>
-                <Input type="number" step="0.01" placeholder="0.00" />
+                <Input
+                  type="number"
+                  step="0.01"
+                  inputMode="decimal"
+                  placeholder="0.00"
+                  value={newLoanApr}
+                  onChange={(e) => setNewLoanApr(e.target.value)}
+                />
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-medium">Monthly Payment</label>
-                <Input type="number" placeholder="0.00" />
+                <Input
+                  type="number"
+                  inputMode="decimal"
+                  placeholder="0.00"
+                  value={newLoanMinPayment}
+                  onChange={(e) => setNewLoanMinPayment(e.target.value)}
+                />
               </div>
-              <Button className="w-full">Add Loan</Button>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Due Day (1-31)</label>
+                <Input
+                  type="number"
+                  min={1}
+                  max={31}
+                  placeholder="e.g. 15"
+                  value={newLoanDueDay}
+                  onChange={(e) => setNewLoanDueDay(e.target.value)}
+                />
+              </div>
+              <Button
+                className="w-full"
+                onClick={async () => {
+                  const name = newLoanName.trim();
+                  const bal = parseFloat(newLoanBalance || "");
+                  if (!name) {
+                    alert("Loan name is required");
+                    return;
+                  }
+                  if (Number.isNaN(bal)) {
+                    alert("Enter a valid current balance");
+                    return;
+                  }
+                  const apr = newLoanApr ? parseFloat(newLoanApr) : undefined;
+                  const minPayment = newLoanMinPayment
+                    ? parseFloat(newLoanMinPayment)
+                    : undefined;
+                  const dueDay = newLoanDueDay
+                    ? Math.min(31, Math.max(1, parseInt(newLoanDueDay)))
+                    : undefined;
+                  const created = await AccountStorage.add({
+                    name,
+                    type: "loan",
+                    balance: bal,
+                    apr,
+                    minPayment,
+                    dueDay,
+                  });
+                  if (!created) {
+                    alert("Failed to create loan");
+                    return;
+                  }
+                  // Reset and refresh
+                  setIsDialogOpen(false);
+                  setNewLoanName("");
+                  setNewLoanBalance("");
+                  setNewLoanApr("");
+                  setNewLoanMinPayment("");
+                  setNewLoanDueDay("");
+                  setIsLoading(true);
+                  const accounts = await AccountStorage.getAllWithBalances();
+                  const loanAccounts = accounts.filter(
+                    (acc) => acc.type === "loan"
+                  );
+                  setLoans(loanAccounts);
+                  setIsLoading(false);
+                }}
+              >
+                Add Loan
+              </Button>
             </div>
           </DialogContent>
         </Dialog>

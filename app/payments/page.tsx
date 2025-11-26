@@ -31,7 +31,14 @@ import {
 } from "@/components/ui/select";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import type { TransactionType } from "@/lib/types";
-import { Plus, RefreshCcw, Link2, Calendar } from "lucide-react";
+import {
+  Plus,
+  RefreshCcw,
+  Link2,
+  Calendar,
+  Pencil,
+  Trash2,
+} from "lucide-react";
 
 interface TransactionDto {
   id: string;
@@ -62,8 +69,20 @@ export default function PaymentsPage() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isLinkRefundOpen, setIsLinkRefundOpen] = useState(false);
   const [linkTarget, setLinkTarget] = useState<TransactionDto | null>(null);
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [editTarget, setEditTarget] = useState<TransactionDto | null>(null);
 
   const [createForm, setCreateForm] = useState({
+    amount: "",
+    date: new Date().toISOString().split("T")[0],
+    description: "",
+    toAccountId: "",
+    fromAccountId: "",
+    isRefund: false,
+    refundExpenseId: "",
+  });
+
+  const [editForm, setEditForm] = useState({
     amount: "",
     date: new Date().toISOString().split("T")[0],
     description: "",
@@ -189,6 +208,36 @@ export default function PaymentsPage() {
     setIsLinkRefundOpen(true);
   };
 
+  const openEdit = (payment: TransactionDto) => {
+    setEditTarget(payment);
+    const meta = (payment.metadata || {}) as Record<string, unknown>;
+    const refundFor = typeof meta.refundFor === "string" ? meta.refundFor : "";
+    setEditForm({
+      amount: String(payment.amount ?? ""),
+      date:
+        payment.date?.slice(0, 10) || new Date().toISOString().split("T")[0],
+      description: payment.description || "",
+      toAccountId: payment.toAccountId || "",
+      fromAccountId: payment.fromAccountId || "",
+      isRefund: !!refundFor,
+      refundExpenseId: refundFor,
+    });
+    setIsEditOpen(true);
+  };
+
+  const handleDelete = async (payment: TransactionDto) => {
+    if (!confirm("Delete this payment? This cannot be undone.")) return;
+    try {
+      const res = await fetch(`/api/transactions/${payment.id}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) throw new Error("Failed to delete payment");
+      await loadData();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to delete payment");
+    }
+  };
+
   const handleLinkRefund = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!linkTarget || !createForm.refundExpenseId) return;
@@ -231,6 +280,59 @@ export default function PaymentsPage() {
         e.fromAccountId &&
         creditOrLoanAccounts.find((a) => a.id === e.fromAccountId)
     ); // recent card charges
+
+  const handleEditSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editTarget) return;
+    if (!editForm.amount || !editForm.date || !editForm.toAccountId) {
+      alert("Amount, date, and destination account are required");
+      return;
+    }
+    const amount = parseFloat(editForm.amount);
+    const payload: Record<string, unknown> = {
+      amount,
+      date: editForm.date,
+      description: editForm.description || undefined,
+      toAccountId: editForm.toAccountId || undefined,
+      fromAccountId: editForm.fromAccountId || undefined,
+    };
+    if (editForm.isRefund) {
+      if (!editForm.refundExpenseId) {
+        alert("Select the original expense for this refund");
+        return;
+      }
+      const expense = expenses.find((e) => e.id === editForm.refundExpenseId);
+      payload.metadata = {
+        ...(editTarget.metadata || {}),
+        refundFor: editForm.refundExpenseId,
+        originalAmount: expense?.amount,
+        partial: expense ? expense.amount !== amount : true,
+      };
+      if (
+        !(payload.description as string)?.toLowerCase?.().includes("refund")
+      ) {
+        payload.description =
+          `Refund: ${expense?.description || editForm.description || ""}`.trim();
+      }
+    } else {
+      // remove refund linkage
+      payload.metadata = {};
+    }
+
+    try {
+      const res = await fetch(`/api/transactions/${editTarget.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) throw new Error("Failed to update payment");
+      setIsEditOpen(false);
+      setEditTarget(null);
+      await loadData();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to update payment");
+    }
+  };
 
   return (
     <div className="space-y-8">
@@ -489,15 +591,31 @@ export default function PaymentsPage() {
                           )}
                         </TableCell>
                         <TableCell className="text-right">
-                          {!refundFor && (
+                          <div className="flex justify-end gap-2">
+                            {!refundFor && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => openLinkRefund(p)}
+                              >
+                                <Link2 className="h-4 w-4 mr-1" /> Refund
+                              </Button>
+                            )}
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={() => openLinkRefund(p)}
+                              onClick={() => openEdit(p)}
                             >
-                              <Link2 className="h-4 w-4 mr-1" /> Link Refund
+                              <Pencil className="h-4 w-4 mr-1" /> Edit
                             </Button>
-                          )}
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={() => handleDelete(p)}
+                            >
+                              <Trash2 className="h-4 w-4 mr-1" /> Delete
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     );
@@ -556,6 +674,156 @@ export default function PaymentsPage() {
               </div>
               <Button type="submit" className="w-full">
                 Link Refund
+              </Button>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Payment Dialog */}
+      <Dialog
+        open={isEditOpen}
+        onOpenChange={(o) => {
+          setIsEditOpen(o);
+          if (!o) {
+            setEditTarget(null);
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Payment</DialogTitle>
+          </DialogHeader>
+          {editTarget && (
+            <form onSubmit={handleEditSubmit} className="space-y-4 py-2">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Amount *</label>
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={editForm.amount}
+                  onChange={(e) =>
+                    setEditForm({ ...editForm, amount: e.target.value })
+                  }
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Date *</label>
+                <Input
+                  type="date"
+                  value={editForm.date}
+                  onChange={(e) =>
+                    setEditForm({ ...editForm, date: e.target.value })
+                  }
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Description</label>
+                <Input
+                  value={editForm.description}
+                  onChange={(e) =>
+                    setEditForm({ ...editForm, description: e.target.value })
+                  }
+                  placeholder="Optional description"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">
+                  Debt Account (toAccount) *
+                </label>
+                <Select
+                  value={editForm.toAccountId || undefined}
+                  onValueChange={(v) =>
+                    setEditForm({ ...editForm, toAccountId: v })
+                  }
+                  required
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select credit/loan" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {creditOrLoanAccounts.map((a) => (
+                      <SelectItem key={a.id} value={a.id}>
+                        {a.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">
+                  Source Bank (optional fromAccount)
+                </label>
+                <Select
+                  value={editForm.fromAccountId || undefined}
+                  onValueChange={(v) =>
+                    setEditForm({ ...editForm, fromAccountId: v })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Optional source" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {bankAccounts.map((a) => (
+                      <SelectItem key={a.id} value={a.id}>
+                        {a.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Is Refund?</label>
+                <Select
+                  value={editForm.isRefund ? "yes" : "no"}
+                  onValueChange={(v) =>
+                    setEditForm({
+                      ...editForm,
+                      isRefund: v === "yes",
+                      refundExpenseId:
+                        v === "yes" ? editForm.refundExpenseId : "",
+                    })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="no">No</SelectItem>
+                    <SelectItem value="yes">Yes</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {editForm.isRefund && (
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">
+                    Original Expense
+                  </label>
+                  <Select
+                    value={editForm.refundExpenseId || undefined}
+                    onValueChange={(v) =>
+                      setEditForm({ ...editForm, refundExpenseId: v })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select expense" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {recentExpensesForRefund.map((e) => (
+                        <SelectItem key={e.id} value={e.id}>
+                          {formatDate(new Date(e.date))} • {e.description} •{" "}
+                          {formatCurrency(e.amount)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              <Button type="submit" className="w-full">
+                Save Changes
               </Button>
             </form>
           )}
