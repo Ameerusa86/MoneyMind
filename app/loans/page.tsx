@@ -29,20 +29,38 @@ import {
 } from "@/components/ui/select";
 import { Plus, Landmark, Calendar, TrendingDown, Clock } from "lucide-react";
 import { formatCurrency, formatDate } from "@/lib/utils";
-import { AccountStorage } from "@/lib/storage";
+import { AccountStorage, TransactionStorage } from "@/lib/storage";
 import { Account } from "@/lib/types";
 import Link from "next/link";
 
 export default function LoansPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [loans, setLoans] = useState<Account[]>([]);
+  const [loans, setLoans] = useState<
+    Array<Account & { calculatedBalance?: number; balanceDifference?: number }>
+  >([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [aprEdits, setAprEdits] = useState<Record<string, string>>({});
+  const [interestInputs, setInterestInputs] = useState<Record<string, string>>(
+    {}
+  );
 
   useEffect(() => {
     const loadLoans = async () => {
       try {
-        const accounts = await AccountStorage.getAll();
+        const accounts = await AccountStorage.getAllWithBalances();
         const loanAccounts = accounts.filter((acc) => acc.type === "loan");
+        // seed edit fields
+        const aprSeed: Record<string, string> = {};
+        const interestSeed: Record<string, string> = {};
+        for (const l of loanAccounts) {
+          aprSeed[l.id] = l.apr != null ? String(l.apr) : "";
+          const currentBal = l.calculatedBalance ?? l.balance ?? 0;
+          const aprPct = l.apr ? l.apr / 100 : 0;
+          const suggested = aprPct > 0 ? currentBal * (aprPct / 12) : 0;
+          interestSeed[l.id] = suggested ? suggested.toFixed(2) : "";
+        }
+        setAprEdits(aprSeed);
+        setInterestInputs(interestSeed);
         setLoans(loanAccounts);
       } catch (error) {
         console.error("Failed to load loans:", error);
@@ -221,8 +239,17 @@ export default function LoansPage() {
                           Current Balance
                         </p>
                         <p className="text-2xl font-bold text-purple-600">
-                          {formatCurrency(loan.balance)}
+                          {formatCurrency(
+                            (loan.calculatedBalance ?? loan.balance) || 0
+                          )}
                         </p>
+                        {loan.balanceDifference != null &&
+                          Math.abs(loan.balanceDifference) > 0.01 && (
+                            <p className="text-xs text-muted-foreground">
+                              Diff vs baseline:{" "}
+                              {formatCurrency(loan.balanceDifference)}
+                            </p>
+                          )}
                       </div>
                       {loan.minPayment && (
                         <div>
@@ -234,14 +261,56 @@ export default function LoansPage() {
                           </p>
                         </div>
                       )}
-                      {loan.apr && (
-                        <div>
-                          <p className="text-sm text-muted-foreground">
-                            Interest Rate
-                          </p>
-                          <p className="text-xl font-semibold">{loan.apr}%</p>
+                      <div>
+                        <p className="text-sm font-medium">
+                          Interest Rate (APR %)
+                        </p>
+                        <div className="flex items-center gap-2 mt-2">
+                          <Input
+                            type="number"
+                            step="0.01"
+                            placeholder="e.g. 5.99"
+                            value={aprEdits[loan.id] ?? ""}
+                            onChange={(e) =>
+                              setAprEdits((prev) => ({
+                                ...prev,
+                                [loan.id]: e.target.value,
+                              }))
+                            }
+                          />
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={async () => {
+                              const raw = aprEdits[loan.id];
+                              const aprVal = raw ? parseFloat(raw) : undefined;
+                              const updated = await AccountStorage.update(
+                                loan.id,
+                                { apr: aprVal }
+                              );
+                              if (!updated) {
+                                alert("Failed to save APR");
+                                return;
+                              }
+                              // Refresh suggested interest using new APR
+                              const currentBal =
+                                (loan.calculatedBalance ?? loan.balance) || 0;
+                              const aprPct = aprVal ? aprVal / 100 : 0;
+                              const suggested =
+                                aprPct > 0 ? currentBal * (aprPct / 12) : 0;
+                              setInterestInputs((prev) => ({
+                                ...prev,
+                                [loan.id]: suggested
+                                  ? suggested.toFixed(2)
+                                  : "",
+                              }));
+                              alert("APR saved");
+                            }}
+                          >
+                            Save
+                          </Button>
                         </div>
-                      )}
+                      </div>
                     </div>
 
                     <div className="grid gap-4 md:grid-cols-3 pt-4 border-t">
@@ -281,6 +350,106 @@ export default function LoansPage() {
                           </Button>
                         </a>
                       )}
+                    </div>
+
+                    {/* Interest Charge Quick Entry */}
+                    <div className="pt-4 border-t">
+                      <h4 className="text-sm font-semibold mb-2">
+                        Add Interest Charge
+                      </h4>
+                      <div className="grid gap-3 md:grid-cols-3 items-end">
+                        <div>
+                          <label className="text-xs text-muted-foreground">
+                            Suggested (APR/12 × current balance)
+                          </label>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            value={interestInputs[loan.id] ?? ""}
+                            onChange={(e) =>
+                              setInterestInputs((prev) => ({
+                                ...prev,
+                                [loan.id]: e.target.value,
+                              }))
+                            }
+                            placeholder="0.00"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs text-muted-foreground">
+                            Date
+                          </label>
+                          <Input
+                            type="date"
+                            defaultValue={
+                              new Date().toISOString().split("T")[0]
+                            }
+                            id={`interest-date-${loan.id}`}
+                          />
+                        </div>
+                        <div className="flex gap-2">
+                          <Button
+                            className="w-full"
+                            variant="outline"
+                            onClick={() => {
+                              const currentBal =
+                                (loan.calculatedBalance ?? loan.balance) || 0;
+                              const aprPct = loan.apr ? loan.apr / 100 : 0;
+                              const suggested =
+                                aprPct > 0 ? currentBal * (aprPct / 12) : 0;
+                              setInterestInputs((prev) => ({
+                                ...prev,
+                                [loan.id]: suggested
+                                  ? suggested.toFixed(2)
+                                  : "",
+                              }));
+                            }}
+                          >
+                            Recalculate
+                          </Button>
+                          <Button
+                            className="w-full"
+                            onClick={async () => {
+                              const rawAmt = interestInputs[loan.id];
+                              const amount = rawAmt ? parseFloat(rawAmt) : 0;
+                              if (!amount || amount <= 0) {
+                                alert("Enter interest amount");
+                                return;
+                              }
+                              const dateEl = document.getElementById(
+                                `interest-date-${loan.id}`
+                              ) as HTMLInputElement | null;
+                              const date =
+                                dateEl?.value ||
+                                new Date().toISOString().split("T")[0];
+                              const txn = await TransactionStorage.add({
+                                type: "expense",
+                                fromAccountId: loan.id,
+                                amount,
+                                date,
+                                description: `Interest: ${loan.name}`,
+                              });
+                              if (!txn) {
+                                alert("Failed to add interest charge");
+                                return;
+                              }
+                              // Refresh data
+                              setIsLoading(true);
+                              const accounts =
+                                await AccountStorage.getAllWithBalances();
+                              const loanAccounts = accounts.filter(
+                                (acc) => acc.type === "loan"
+                              );
+                              setLoans(loanAccounts);
+                              setIsLoading(false);
+                              alert("Interest charge posted");
+                            }}
+                          >
+                            Post Interest
+                          </Button>
+                        </div>
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
