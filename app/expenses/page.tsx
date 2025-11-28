@@ -564,6 +564,43 @@ export default function ExpensesPage() {
       setRefundError("Please fill required fields");
       return;
     }
+    // Guardrails: prevent duplicate or over-refunds for the same expense
+    try {
+      const amtGuard = parseFloat(refundForm.amount);
+      const existing = refundMap[refundSourceTxn.id];
+      const alreadyRefunded = existing?.totalRefund || 0;
+
+      // Duplicate check: same amount refund already exists within 3 days window
+      const hasSameAmountNearby = (existing?.payments || []).some((p) => {
+        const sameAmount = Math.abs(p.amount - amtGuard) < 0.005;
+        const daysApart =
+          Math.abs(
+            new Date(p.date).getTime() - new Date(refundForm.date).getTime()
+          ) /
+          (1000 * 60 * 60 * 24);
+        return sameAmount && daysApart <= 3;
+      });
+      if (hasSameAmountNearby) {
+        setRefundError(
+          "A refund with the same amount already exists for this expense (within 3 days)."
+        );
+        return;
+      }
+
+      // Over-refund prevention
+      if (
+        alreadyRefunded + amtGuard >
+        Math.abs(refundSourceTxn.amount) + 0.005
+      ) {
+        setRefundError(
+          "This refund would exceed the original expense total. Adjust the amount."
+        );
+        return;
+      }
+    } catch (guardErr) {
+      console.warn("Refund guard check failed:", guardErr);
+      // Continue; guard is best-effort
+    }
     setRefundSaving(true);
     setRefundError(null);
     try {

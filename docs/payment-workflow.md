@@ -253,3 +253,4 @@ Transaction (type: payment, with metadata.refundFor)
 - **Refund Metadata**: `{ refundFor: expenseId, originalAmount: number, partial: boolean }`
 - **Transaction Keys**: Deterministic hash prevents duplicate imports
 - **Balance Impact**: Payments reduce debt account balances (credit/loan)
+- **Opening vs Current Balance**: `account.balance` is the opening (baseline) balance before any transactions. The real-time/current balance is computed by replaying all transactions. A purchase (expense) followed by a full refund (payment) will bring the current balance back to the opening balance, so both columns may match. Differences appear only when net activity since opening changes the balance.

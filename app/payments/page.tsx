@@ -163,6 +163,47 @@ export default function PaymentsPage() {
       return;
     }
     const amount = parseFloat(createForm.amount);
+
+    // Guardrails for refunds: prevent duplicates and over-refunds
+    if (createForm.isRefund && createForm.refundExpenseId) {
+      const expense = expenses.find(
+        (ex) => ex.id === createForm.refundExpenseId
+      );
+      if (!expense) {
+        alert("Original expense not found for refund");
+        return;
+      }
+      const existing = payments.filter((p) => {
+        const meta = (p.metadata || {}) as Record<string, unknown>;
+        return meta && (meta.refundFor as string) === expense.id;
+      });
+      const alreadyRefunded = existing.reduce(
+        (s, p) => s + Math.abs(p.amount),
+        0
+      );
+      // Duplicate check within 3 days, same amount
+      const hasSameAmountNearby = existing.some((p) => {
+        const sameAmount = Math.abs(p.amount - amount) < 0.005;
+        const daysApart =
+          Math.abs(
+            new Date(p.date).getTime() - new Date(createForm.date).getTime()
+          ) /
+          (1000 * 60 * 60 * 24);
+        return sameAmount && daysApart <= 3;
+      });
+      if (hasSameAmountNearby) {
+        alert(
+          "A refund with the same amount already exists for this expense (within 3 days)."
+        );
+        return;
+      }
+      if (alreadyRefunded + amount > Math.abs(expense.amount) + 0.005) {
+        alert(
+          "This refund would exceed the original expense amount. Adjust the amount."
+        );
+        return;
+      }
+    }
     const payload: Record<string, unknown> = {
       type: "payment",
       amount,
@@ -289,6 +330,45 @@ export default function PaymentsPage() {
       return;
     }
     const amount = parseFloat(editForm.amount);
+
+    // Guardrails for refunds on edit as well
+    if (editForm.isRefund && editForm.refundExpenseId) {
+      const expense = expenses.find((ex) => ex.id === editForm.refundExpenseId);
+      if (!expense) {
+        alert("Original expense not found for refund");
+        return;
+      }
+      const existing = payments.filter((p) => {
+        if (p.id === editTarget.id) return false; // exclude self
+        const meta = (p.metadata || {}) as Record<string, unknown>;
+        return meta && (meta.refundFor as string) === expense.id;
+      });
+      const alreadyRefunded = existing.reduce(
+        (s, p) => s + Math.abs(p.amount),
+        0
+      );
+      const hasSameAmountNearby = existing.some((p) => {
+        const sameAmount = Math.abs(p.amount - amount) < 0.005;
+        const daysApart =
+          Math.abs(
+            new Date(p.date).getTime() - new Date(editForm.date).getTime()
+          ) /
+          (1000 * 60 * 60 * 24);
+        return sameAmount && daysApart <= 3;
+      });
+      if (hasSameAmountNearby) {
+        alert(
+          "A refund with the same amount already exists for this expense (within 3 days)."
+        );
+        return;
+      }
+      if (alreadyRefunded + amount > Math.abs(expense.amount) + 0.005) {
+        alert(
+          "This refund would exceed the original expense amount. Adjust the amount."
+        );
+        return;
+      }
+    }
     const payload: Record<string, unknown> = {
       amount,
       date: editForm.date,

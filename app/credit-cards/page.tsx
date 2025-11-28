@@ -13,6 +13,13 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Plus,
   CreditCard,
   Calendar,
@@ -34,7 +41,9 @@ export default function CreditCardsPage() {
   const [cardBalance, setCardBalance] = useState("");
   const [cardDueDate, setCardDueDate] = useState("");
   const [cardApr, setCardApr] = useState("");
-  const [creditCards, setCreditCards] = useState<Account[]>([]);
+  const [creditCards, setCreditCards] = useState<
+    Array<Account & { calculatedBalance?: number; balanceDifference?: number }>
+  >([]);
   const [isLoading, setIsLoading] = useState(true);
   // Edit Card state
   const [editingCard, setEditingCard] = useState<Account | null>(null);
@@ -46,11 +55,16 @@ export default function CreditCardsPage() {
   const [editBalance, setEditBalance] = useState("");
   const [editDueDay, setEditDueDay] = useState("");
   const [editApr, setEditApr] = useState("");
+  // Search & Filter
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filter, setFilter] = useState<
+    "all" | "due_7" | "high_util" | "med_util" | "low_util"
+  >("all");
 
   useEffect(() => {
     const loadCreditCards = async () => {
       try {
-        const accounts = await AccountStorage.getAll();
+        const accounts = await AccountStorage.getAllWithBalances();
         const cards = accounts.filter((acc) => acc.type === "credit");
         setCreditCards(cards);
       } catch (error) {
@@ -62,8 +76,50 @@ export default function CreditCardsPage() {
     loadCreditCards();
   }, []);
 
-  const totalBalance = creditCards.reduce((sum, card) => sum + card.balance, 0);
-  const totalLimit = creditCards.reduce(
+  const getCurrentBalance = (card: Account & { calculatedBalance?: number }) =>
+    card.calculatedBalance ?? card.balance;
+
+  const getDaysUntilDue = (card: Account) => {
+    if (!card.dueDay) return null;
+    const today = new Date();
+    const currentMonth = today.getMonth();
+    const currentYear = today.getFullYear();
+    let dueDate = new Date(currentYear, currentMonth, card.dueDay);
+    if (dueDate < today) {
+      dueDate = new Date(currentYear, currentMonth + 1, card.dueDay);
+    }
+    return Math.ceil(
+      (dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
+    );
+  };
+
+  // Apply search + filter
+  const filteredCards = creditCards.filter((card) => {
+    const nameOk = card.name.toLowerCase().includes(searchQuery.toLowerCase());
+    if (!nameOk) return false;
+    const current = getCurrentBalance(card);
+    const util = card.creditLimit ? (current / card.creditLimit) * 100 : 0;
+    switch (filter) {
+      case "due_7": {
+        const d = getDaysUntilDue(card);
+        return d !== null && d <= 7;
+      }
+      case "high_util":
+        return util > 70;
+      case "med_util":
+        return util >= 30 && util <= 70;
+      case "low_util":
+        return util < 30;
+      default:
+        return true;
+    }
+  });
+
+  const totalBalance = filteredCards.reduce(
+    (sum, card) => sum + getCurrentBalance(card),
+    0
+  );
+  const totalLimit = filteredCards.reduce(
     (sum, card) => sum + (card.creditLimit || 0),
     0
   );
@@ -321,6 +377,46 @@ export default function CreditCardsPage() {
         </Dialog>
       </div>
 
+      {/* Filters */}
+      <Card>
+        <CardContent className="pt-6">
+          <div className="grid gap-4 md:grid-cols-3">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Search</label>
+              <Input
+                placeholder="Search by name..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Filter</label>
+              <Select value={filter} onValueChange={setFilter}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Cards</SelectItem>
+                  <SelectItem value="due_7">Due within 7 days</SelectItem>
+                  <SelectItem value="high_util">
+                    High utilization (&gt; 70%)
+                  </SelectItem>
+                  <SelectItem value="med_util">
+                    Medium utilization (30–70%)
+                  </SelectItem>
+                  <SelectItem value="low_util">
+                    Low utilization (&lt; 30%)
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-end justify-end text-sm text-muted-foreground">
+              Showing {filteredCards.length} of {creditCards.length}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       <div className="grid gap-4 md:grid-cols-3">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -394,35 +490,20 @@ export default function CreditCardsPage() {
             </div>
           </div>
         </Card>
+      ) : filteredCards.length === 0 ? (
+        <Card className="p-8">
+          <div className="text-center text-muted-foreground">
+            No cards match your search/filters.
+          </div>
+        </Card>
       ) : (
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {creditCards.map((card) => {
+          {filteredCards.map((card) => {
+            const current = getCurrentBalance(card);
             const utilization = card.creditLimit
-              ? (card.balance / card.creditLimit) * 100
+              ? (current / card.creditLimit) * 100
               : 0;
-            const daysUntilDue = card.dueDay
-              ? (() => {
-                  const today = new Date();
-                  const currentMonth = today.getMonth();
-                  const currentYear = today.getFullYear();
-                  let dueDate = new Date(
-                    currentYear,
-                    currentMonth,
-                    card.dueDay
-                  );
-                  if (dueDate < today) {
-                    dueDate = new Date(
-                      currentYear,
-                      currentMonth + 1,
-                      card.dueDay
-                    );
-                  }
-                  return Math.ceil(
-                    (dueDate.getTime() - today.getTime()) /
-                      (1000 * 60 * 60 * 24)
-                  );
-                })()
-              : null;
+            const daysUntilDue = getDaysUntilDue(card);
 
             return (
               <Card key={card.id} className="overflow-hidden">
@@ -449,9 +530,16 @@ export default function CreditCardsPage() {
                         Balance
                       </span>
                       <span className="font-bold text-orange-600">
-                        {formatCurrency(card.balance)}
+                        {formatCurrency(current)}
                       </span>
                     </div>
+                    {card.calculatedBalance !== undefined &&
+                      Math.abs((card.calculatedBalance ?? 0) - card.balance) >
+                        0.01 && (
+                        <p className="text-xs text-emerald-600 text-right">
+                          ● Real-time (opening {formatCurrency(card.balance)})
+                        </p>
+                      )}
                     {card.creditLimit && (
                       <>
                         <div className="flex justify-between text-sm">
