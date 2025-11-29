@@ -255,7 +255,7 @@ export default function PaymentPlannerPage() {
     try {
       const today = new Date().toISOString().split("T")[0];
       const transactionPromises: Promise<Response>[] = [];
-      const billUpdatePromises: Promise<boolean>[] = [];
+      const billUpdatePromises: Promise<Bill | null>[] = [];
 
       // Create transactions for each planned payment
       for (const planned of plannedForPeriod) {
