@@ -391,7 +391,14 @@ export default function CreditCardsPage() {
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">Filter</label>
-              <Select value={filter} onValueChange={setFilter}>
+              <Select
+                value={filter}
+                onValueChange={(v) =>
+                  setFilter(
+                    v as "all" | "due_7" | "high_util" | "med_util" | "low_util"
+                  )
+                }
+              >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
