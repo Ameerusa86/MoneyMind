@@ -37,7 +37,8 @@ export function MonthlyChart() {
 
         // Fetch expenses
         const expenseRes = await fetch(
-          `/api/transactions?type=expense&month=${monthStr}`
+          `/api/transactions?type=expense&month=${monthStr}`,
+          { cache: "no-store" }
         );
         const expenses = expenseRes.ok
           ? (await expenseRes.json()).reduce(
@@ -48,7 +49,8 @@ export function MonthlyChart() {
 
         // Fetch income
         const incomeRes = await fetch(
-          `/api/transactions?type=income_deposit&month=${monthStr}`
+          `/api/transactions?type=income_deposit&month=${monthStr}`,
+          { cache: "no-store" }
         );
         const income = incomeRes.ok
           ? (await incomeRes.json()).reduce(

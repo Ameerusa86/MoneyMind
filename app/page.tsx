@@ -9,15 +9,19 @@ import {
 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { RecentTransactions } from "@/components/recent-transactions";
-import { MonthlyChart } from "@/components/monthly-chart";
-import { ExpenseBreakdown } from "@/components/expense-breakdown";
+import { TransactionsWidget } from "@/components/transactions-widget";
+import { SpendVsPaid } from "@/components/spend-vs-paid";
+import { CashVsDebt } from "@/components/cash-vs-debt";
 import { TransferDialog } from "@/components/transfer-dialog";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import dbConnect from "@/lib/mongoose";
 import { Expense, Account, PaySchedule } from "@/lib/models";
+
+// Ensure real-time data (disable caching/ISR)
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 export default async function DashboardPage() {
   // Server-side auth guard
@@ -138,35 +142,41 @@ export default async function DashboardPage() {
       return sum + calculatedBalance;
     }, 0);
 
-  // Calculate total income from actual deposits this month
-  // If no data for current month, show most recent data
+  // Calculate totals for this month
   const currentMonthIncome = transactions.filter(
     (t) =>
       t.type === "income_deposit" &&
       new Date(t.date) >= monthStart &&
       new Date(t.date) <= monthEnd
   );
+  const currentMonthPayments = transactions.filter(
+    (t) =>
+      t.type === "payment" &&
+      new Date(t.date) >= monthStart &&
+      new Date(t.date) <= monthEnd
+  );
 
-  const totalIncome =
-    currentMonthIncome.length > 0
-      ? currentMonthIncome.reduce((sum, t) => sum + Math.abs(t.amount), 0)
-      : transactions
-          .filter((t) => t.type === "income_deposit")
-          .slice(0, 50)
-          .reduce((sum, t) => sum + Math.abs(t.amount), 0);
+  const totalIncome = currentMonthIncome.reduce(
+    (sum, t) => sum + Math.abs(t.amount),
+    0
+  );
+  const totalPayments = currentMonthPayments.reduce(
+    (sum, t) => sum + Math.abs(t.amount),
+    0
+  );
 
   const stats = {
-    totalIncome,
-    totalExpenses,
-    creditCardDebt,
-    totalLoans,
-    savings,
-    checkingCash,
+    spent: totalExpenses,
+    paid: totalPayments,
+    stillOwe: creditCardDebt + totalLoans,
+    stillHave: checkingCash + savings,
   };
 
   // Determine display period
   const hasCurrentMonthData =
-    currentMonthExpenses.length > 0 || currentMonthIncome.length > 0;
+    currentMonthExpenses.length > 0 ||
+    currentMonthIncome.length > 0 ||
+    currentMonthPayments.length > 0;
   const displayPeriod = hasCurrentMonthData ? "This month" : "Recent";
 
   return (
@@ -181,146 +191,78 @@ export default async function DashboardPage() {
         <TransferDialog />
       </div>
 
-      {/* Stats Grid */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+      {/* Key Metrics */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Income</CardTitle>
-            <TrendingUp className="h-4 w-4 text-green-600 dark:text-green-400" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600 dark:text-green-400">
-              {formatCurrency(stats.totalIncome)}
-            </div>
-            <p className="text-xs text-gray-600 dark:text-gray-400">
-              {displayPeriod}
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Total Expenses
-            </CardTitle>
+            <CardTitle className="text-sm font-medium">Spent</CardTitle>
             <TrendingDown className="h-4 w-4 text-red-600 dark:text-red-400" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-red-600 dark:text-red-400">
-              {formatCurrency(stats.totalExpenses)}
+              {formatCurrency(stats.spent)}
             </div>
-            <p className="text-xs text-gray-600 dark:text-gray-400">
-              {displayPeriod}
-            </p>
+            <p className="text-xs text-muted-foreground">{displayPeriod}</p>
           </CardContent>
         </Card>
-
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Net Income</CardTitle>
-            <DollarSign className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+            <CardTitle className="text-sm font-medium">Paid</CardTitle>
+            <TrendingUp className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-              {formatCurrency(stats.totalIncome - stats.totalExpenses)}
+            <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
+              {formatCurrency(stats.paid)}
             </div>
-            <p className="text-xs text-gray-600 dark:text-gray-400">
-              {displayPeriod}
-            </p>
+            <p className="text-xs text-muted-foreground">{displayPeriod}</p>
           </CardContent>
         </Card>
-
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Credit Card Debt
-            </CardTitle>
-            <CreditCard className="h-4 w-4 text-orange-600 dark:text-orange-400" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-orange-600 dark:text-orange-400">
-              {formatCurrency(stats.creditCardDebt)}
-            </div>
-            <p className="text-xs text-gray-600 dark:text-gray-400">
-              Total outstanding
-            </p>
-            <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-1">
-              ● Real-time balance
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Loans</CardTitle>
-            <Landmark className="h-4 w-4 text-purple-600 dark:text-purple-400" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">
-              {formatCurrency(stats.totalLoans)}
-            </div>
-            <p className="text-xs text-gray-600 dark:text-gray-400">
-              Remaining balance
-            </p>
-            <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-1">
-              ● Real-time balance
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Savings</CardTitle>
+            <CardTitle className="text-sm font-medium">Still Have</CardTitle>
             <PiggyBank className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
-              {formatCurrency(stats.savings)}
+              {formatCurrency(stats.stillHave)}
             </div>
-            <p className="text-xs text-gray-600 dark:text-gray-400">
-              Savings accounts
-            </p>
-            <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-1">
-              ● Real-time balance
+            <p className="text-xs text-muted-foreground">
+              Checking + Savings (real-time)
             </p>
           </CardContent>
         </Card>
-
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Checking Cash</CardTitle>
-            <DollarSign className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+            <CardTitle className="text-sm font-medium">Still Owe</CardTitle>
+            <Landmark className="h-4 w-4 text-orange-600 dark:text-orange-400" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
-              {formatCurrency(stats.checkingCash)}
+            <div className="text-2xl font-bold text-orange-600 dark:text-orange-400">
+              {formatCurrency(stats.stillOwe)}
             </div>
-            <p className="text-xs text-gray-600 dark:text-gray-400">
-              Checking accounts
-            </p>
-            <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-1">
-              ● Real-time balance
+            <p className="text-xs text-muted-foreground">
+              Credit + Loans (real-time)
             </p>
           </CardContent>
         </Card>
       </div>
 
       {/* Charts Section */}
-      <Tabs defaultValue="overview" className="space-y-4">
+      <Tabs defaultValue="spend" className="space-y-4">
         <TabsList>
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="expenses">Expense Breakdown</TabsTrigger>
+          <TabsTrigger value="spend">Spend vs Paid</TabsTrigger>
+          <TabsTrigger value="balances">Cash vs Debt</TabsTrigger>
         </TabsList>
-        <TabsContent value="overview" className="space-y-4">
-          <MonthlyChart />
+        <TabsContent value="spend" className="space-y-4">
+          <SpendVsPaid />
         </TabsContent>
-        <TabsContent value="expenses" className="space-y-4">
-          <ExpenseBreakdown />
+        <TabsContent value="balances" className="space-y-4">
+          <CashVsDebt />
         </TabsContent>
       </Tabs>
 
-      {/* Recent Transactions */}
-      <RecentTransactions />
+      {/* Recent Transactions with Filters */}
+      <TransactionsWidget />
     </div>
   );
 }

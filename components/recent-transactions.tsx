@@ -46,7 +46,9 @@ export function RecentTransactions() {
     setIsMounted(true);
     const fetchData = async () => {
       try {
-        const res = await fetch("/api/transactions?limit=10");
+        const res = await fetch("/api/transactions?limit=10", {
+          cache: "no-store",
+        });
         if (res.ok) {
           const data = await res.json();
           setTransactions(data.slice(0, 6));

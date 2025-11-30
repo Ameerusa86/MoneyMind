@@ -51,6 +51,15 @@ export default function AccountsPage() {
   const [editingAccount, setEditingAccount] = useState<Account | null>(null);
   const [loadingBalances, setLoadingBalances] = useState(false);
 
+  // Filters & sorting
+  const [search, setSearch] = useState("");
+  const [typeFilter, setTypeFilter] = useState<"all" | AccountType>("all");
+  const [dueSoonOnly, setDueSoonOnly] = useState(false);
+  const [hideZero, setHideZero] = useState(false);
+  const [sortBy, setSortBy] = useState<"name" | "currentDesc" | "currentAsc">(
+    "name"
+  );
+
   // Form state
   const [name, setName] = useState("");
   const [type, setType] = useState<AccountType>("credit");
@@ -164,6 +173,45 @@ export default function AccountsPage() {
     };
     return colors[accountType];
   };
+
+  const currentAmount = (a: { balance: number; calculatedBalance?: number }) =>
+    a.calculatedBalance ?? a.balance;
+
+  const daysUntilDue = (dueDay?: number) => {
+    if (!dueDay) return Infinity;
+    const now = new Date();
+    const today = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
+      0,
+      0,
+      0,
+      0
+    );
+    let due = new Date(now.getFullYear(), now.getMonth(), dueDay);
+    if (due < today) {
+      due = new Date(now.getFullYear(), now.getMonth() + 1, dueDay);
+    }
+    const msPerDay = 24 * 60 * 60 * 1000;
+    return Math.ceil((due.getTime() - today.getTime()) / msPerDay);
+  };
+
+  const displayAccounts = accounts
+    .filter((a) => (typeFilter === "all" ? true : a.type === typeFilter))
+    .filter((a) =>
+      search.trim()
+        ? a.name.toLowerCase().includes(search.trim().toLowerCase())
+        : true
+    )
+    .filter((a) => (dueSoonOnly ? daysUntilDue(a.dueDay) <= 7 : true))
+    .filter((a) => (hideZero ? Math.abs(currentAmount(a)) > 0.005 : true))
+    .sort((a, b) => {
+      if (sortBy === "name") return a.name.localeCompare(b.name);
+      if (sortBy === "currentDesc") return currentAmount(b) - currentAmount(a);
+      if (sortBy === "currentAsc") return currentAmount(a) - currentAmount(b);
+      return 0;
+    });
 
   return (
     <div className="container mx-auto py-8 px-4">
@@ -394,6 +442,84 @@ export default function AccountsPage() {
           </Card>
         </div>
 
+        {/* Filters */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Filters</CardTitle>
+            <CardDescription>Find accounts quickly</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-3 grid-cols-1 md:grid-cols-2 lg:grid-cols-4">
+              <div>
+                <label className="text-xs text-muted-foreground">Search</label>
+                <Input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Account name"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground">Type</label>
+                <Select
+                  value={typeFilter}
+                  onValueChange={(v) => setTypeFilter(v as any)}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All</SelectItem>
+                    <SelectItem value="checking">Checking</SelectItem>
+                    <SelectItem value="savings">Savings</SelectItem>
+                    <SelectItem value="credit">Credit</SelectItem>
+                    <SelectItem value="loan">Loan</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground">Sort</label>
+                <Select
+                  value={sortBy}
+                  onValueChange={(v) => setSortBy(v as any)}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="name">Name (A–Z)</SelectItem>
+                    <SelectItem value="currentDesc">
+                      Current Balance ↓
+                    </SelectItem>
+                    <SelectItem value="currentAsc">
+                      Current Balance ↑
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-end gap-4">
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4"
+                    checked={dueSoonOnly}
+                    onChange={(e) => setDueSoonOnly(e.target.checked)}
+                  />
+                  Due in 7 days
+                </label>
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4"
+                    checked={hideZero}
+                    onChange={(e) => setHideZero(e.target.checked)}
+                  />
+                  Hide zero balances
+                </label>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Accounts Table */}
         <Card>
           <CardHeader>
@@ -401,7 +527,7 @@ export default function AccountsPage() {
             <CardDescription>Manage your financial accounts</CardDescription>
           </CardHeader>
           <CardContent>
-            {accounts.length === 0 ? (
+            {displayAccounts.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
                 No accounts yet. Click &ldquo;Add Account&rdquo; to get started.
               </div>
@@ -430,13 +556,19 @@ export default function AccountsPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {accounts.map((account) => (
+                  {displayAccounts.map((account) => (
                     <TableRow key={account.id}>
                       <TableCell className="font-medium">
                         <div className="flex items-center gap-2">
                           {getAccountIcon(account.type)}
                           <div>
                             <div>{account.name}</div>
+                            {account.dueDay &&
+                              daysUntilDue(account.dueDay) <= 7 && (
+                                <div className="text-xs text-orange-600">
+                                  ● Due soon
+                                </div>
+                              )}
                             {account.type === "credit" &&
                               account.creditLimit && (
                                 <div className="text-xs text-muted-foreground">

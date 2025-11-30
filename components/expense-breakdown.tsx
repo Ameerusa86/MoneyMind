@@ -57,7 +57,8 @@ export function ExpenseBreakdown() {
         const monthStr = `${year}-${String(month + 1).padStart(2, "0")}`;
 
         const res = await fetch(
-          `/api/transactions?type=expense&month=${monthStr}`
+          `/api/transactions?type=expense&month=${monthStr}`,
+          { cache: "no-store" }
         );
         if (!res.ok) {
           setData([]);
