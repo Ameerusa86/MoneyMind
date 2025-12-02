@@ -20,15 +20,25 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
   Plus,
   CreditCard,
   Calendar,
   DollarSign,
   AlertCircle,
+  Receipt,
+  RefreshCw,
 } from "lucide-react";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, formatDate } from "@/lib/utils";
 import { AccountStorage } from "@/lib/storage";
-import { Account } from "@/lib/types";
+import { Account, Transaction } from "@/lib/types";
 
 export default function CreditCardsPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -60,21 +70,36 @@ export default function CreditCardsPage() {
   const [filter, setFilter] = useState<
     "all" | "due_7" | "high_util" | "med_util" | "low_util"
   >("all");
+  // Expense Details Dialog
+  const [expenseDialogOpen, setExpenseDialogOpen] = useState(false);
+  const [selectedCardForExpenses, setSelectedCardForExpenses] =
+    useState<Account | null>(null);
+  const [cardExpenses, setCardExpenses] = useState<Transaction[]>([]);
+  const [loadingExpenses, setLoadingExpenses] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const loadCreditCards = async () => {
+    try {
+      setIsLoading(true);
+      const accounts = await AccountStorage.getAllWithBalances();
+      const cards = accounts.filter((acc) => acc.type === "credit");
+      setCreditCards(cards);
+    } catch (error) {
+      console.error("Failed to load credit cards:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const loadCreditCards = async () => {
-      try {
-        const accounts = await AccountStorage.getAllWithBalances();
-        const cards = accounts.filter((acc) => acc.type === "credit");
-        setCreditCards(cards);
-      } catch (error) {
-        console.error("Failed to load credit cards:", error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
     loadCreditCards();
   }, []);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await loadCreditCards();
+    setRefreshing(false);
+  };
 
   const getCurrentBalance = (card: Account & { calculatedBalance?: number }) =>
     card.calculatedBalance ?? card.balance;
@@ -184,9 +209,10 @@ export default function CreditCardsPage() {
         setErrorMsg("Failed to add credit card");
         return;
       }
-      setCreditCards((prev) => [created, ...prev]);
       resetAddForm();
       setIsDialogOpen(false);
+      // Reload all cards to get updated balances
+      await loadCreditCards();
     } catch (e) {
       setErrorMsg("Unexpected error adding card");
     } finally {
@@ -258,15 +284,36 @@ export default function CreditCardsPage() {
         setEditError("Failed to update card");
         return;
       }
-      setCreditCards((prev) =>
-        prev.map((c) => (c.id === editingCard.id ? updated : c))
-      );
       setIsEditOpen(false);
       setEditingCard(null);
+      // Reload all cards to get updated balances
+      await loadCreditCards();
     } catch (e) {
       setEditError("Unexpected error updating card");
     } finally {
       setEditSaving(false);
+    }
+  };
+
+  const openExpenseDetails = async (card: Account) => {
+    setSelectedCardForExpenses(card);
+    setExpenseDialogOpen(true);
+    setLoadingExpenses(true);
+    try {
+      const response = await fetch(
+        `/api/transactions?type=expense&accountId=${card.id}`
+      );
+      if (response.ok) {
+        const transactions = await response.json();
+        setCardExpenses(transactions);
+      } else {
+        setCardExpenses([]);
+      }
+    } catch (error) {
+      console.error("Failed to load expenses:", error);
+      setCardExpenses([]);
+    } finally {
+      setLoadingExpenses(false);
     }
   };
 
@@ -279,102 +326,114 @@ export default function CreditCardsPage() {
             Manage your credit cards and track balances
           </p>
         </div>
-        <Dialog
-          open={isDialogOpen}
-          onOpenChange={(open) => {
-            setIsDialogOpen(open);
-            if (!open) resetAddForm();
-          }}
-        >
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="mr-2 h-4 w-4" />
-              Add Card
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Add New Credit Card</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                  Card Name
-                </label>
-                <Input
-                  placeholder="e.g., Chase Sapphire"
-                  value={cardName}
-                  onChange={(e) => setCardName(e.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                  Last 4 Digits
-                </label>
-                <Input
-                  placeholder="1234"
-                  maxLength={4}
-                  value={cardLast4}
-                  onChange={(e) =>
-                    setCardLast4(e.target.value.replace(/[^0-9]/g, ""))
-                  }
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                  Credit Limit
-                </label>
-                <Input
-                  type="number"
-                  placeholder="0.00"
-                  value={cardLimit}
-                  onChange={(e) => setCardLimit(e.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                  Current Balance
-                </label>
-                <Input
-                  type="number"
-                  placeholder="0.00"
-                  value={cardBalance}
-                  onChange={(e) => setCardBalance(e.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                  Due Date
-                </label>
-                <Input
-                  type="date"
-                  value={cardDueDate}
-                  onChange={(e) => setCardDueDate(e.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                  Interest Rate (%)
-                </label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  placeholder="0.00"
-                  value={cardApr}
-                  onChange={(e) => setCardApr(e.target.value)}
-                />
-              </div>
-              {errorMsg && <p className="text-sm text-red-600">{errorMsg}</p>}
-              <Button
-                className="w-full"
-                onClick={handleAddCard}
-                disabled={isSaving}
-              >
-                {isSaving ? "Adding..." : "Add Credit Card"}
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={handleRefresh}
+            disabled={refreshing}
+          >
+            <RefreshCw
+              className={`mr-2 h-4 w-4 ${refreshing ? "animate-spin" : ""}`}
+            />
+            Refresh
+          </Button>
+          <Dialog
+            open={isDialogOpen}
+            onOpenChange={(open) => {
+              setIsDialogOpen(open);
+              if (!open) resetAddForm();
+            }}
+          >
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="mr-2 h-4 w-4" />
+                Add Card
               </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Add New Credit Card</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                    Card Name
+                  </label>
+                  <Input
+                    placeholder="e.g., Chase Sapphire"
+                    value={cardName}
+                    onChange={(e) => setCardName(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                    Last 4 Digits
+                  </label>
+                  <Input
+                    placeholder="1234"
+                    maxLength={4}
+                    value={cardLast4}
+                    onChange={(e) =>
+                      setCardLast4(e.target.value.replace(/[^0-9]/g, ""))
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                    Credit Limit
+                  </label>
+                  <Input
+                    type="number"
+                    placeholder="0.00"
+                    value={cardLimit}
+                    onChange={(e) => setCardLimit(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                    Current Balance
+                  </label>
+                  <Input
+                    type="number"
+                    placeholder="0.00"
+                    value={cardBalance}
+                    onChange={(e) => setCardBalance(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                    Due Date
+                  </label>
+                  <Input
+                    type="date"
+                    value={cardDueDate}
+                    onChange={(e) => setCardDueDate(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                    Interest Rate (%)
+                  </label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    placeholder="0.00"
+                    value={cardApr}
+                    onChange={(e) => setCardApr(e.target.value)}
+                  />
+                </div>
+                {errorMsg && <p className="text-sm text-red-600">{errorMsg}</p>}
+                <Button
+                  className="w-full"
+                  onClick={handleAddCard}
+                  disabled={isSaving}
+                >
+                  {isSaving ? "Adding..." : "Add Credit Card"}
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       {/* Filters */}
@@ -534,7 +593,7 @@ export default function CreditCardsPage() {
                   <div className="space-y-2">
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-600 dark:text-gray-400">
-                        Balance
+                        Current Balance
                       </span>
                       <span className="font-bold text-orange-600">
                         {formatCurrency(current)}
@@ -543,9 +602,14 @@ export default function CreditCardsPage() {
                     {card.calculatedBalance !== undefined &&
                       Math.abs((card.calculatedBalance ?? 0) - card.balance) >
                         0.01 && (
-                        <p className="text-xs text-emerald-600 text-right">
-                          ● Real-time (opening {formatCurrency(card.balance)})
-                        </p>
+                        <div className="text-xs space-y-1">
+                          <p className="text-emerald-600 text-right font-medium">
+                            ● Real-time balance
+                          </p>
+                          <p className="text-gray-500 text-right">
+                            Opening balance: {formatCurrency(card.balance)}
+                          </p>
+                        </div>
                       )}
                     {card.creditLimit && (
                       <>
@@ -612,6 +676,15 @@ export default function CreditCardsPage() {
                         Due in {daysUntilDue} days
                       </Badge>
                     )}
+                    <Button
+                      className="w-full"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => openExpenseDetails(card)}
+                    >
+                      <Receipt className="mr-2 h-4 w-4" />
+                      View Expenses
+                    </Button>
                     {card.website && (
                       <a
                         href={card.website}
@@ -722,6 +795,109 @@ export default function CreditCardsPage() {
           </Dialog>
         </div>
       )}
+
+      {/* Expense Details Dialog */}
+      <Dialog
+        open={expenseDialogOpen}
+        onOpenChange={(open) => {
+          setExpenseDialogOpen(open);
+          if (!open) {
+            setSelectedCardForExpenses(null);
+            setCardExpenses([]);
+          }
+        }}
+      >
+        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              Expenses for {selectedCardForExpenses?.name}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            {loadingExpenses ? (
+              <div className="text-center py-8 text-muted-foreground">
+                Loading expenses...
+              </div>
+            ) : cardExpenses.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                No expenses found for this card
+              </div>
+            ) : (
+              <>
+                <div className="grid grid-cols-3 gap-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                  <div>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                      Opening Balance
+                    </p>
+                    <p className="text-xl font-bold">
+                      {formatCurrency(selectedCardForExpenses?.balance || 0)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                      Total Expenses
+                    </p>
+                    <p className="text-xl font-bold text-orange-600">
+                      {formatCurrency(
+                        cardExpenses.reduce((sum, exp) => sum + exp.amount, 0)
+                      )}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                      Expected Balance
+                    </p>
+                    <p className="text-xl font-bold text-green-600">
+                      {formatCurrency(
+                        (selectedCardForExpenses?.balance || 0) +
+                          cardExpenses.reduce((sum, exp) => sum + exp.amount, 0)
+                      )}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="text-sm text-gray-600 dark:text-gray-400 text-center">
+                  {cardExpenses.length} expense transaction
+                  {cardExpenses.length !== 1 ? "s" : ""} found
+                </div>
+
+                <div className="border rounded-lg overflow-hidden">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Date</TableHead>
+                        <TableHead>Description</TableHead>
+                        <TableHead>Category</TableHead>
+                        <TableHead className="text-right">Amount</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {cardExpenses.map((expense) => (
+                        <TableRow key={expense.id}>
+                          <TableCell className="whitespace-nowrap">
+                            {formatDate(expense.date)}
+                          </TableCell>
+                          <TableCell>
+                            {expense.description || "No description"}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline">
+                              {expense.category || "other"}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-right font-medium text-orange-600">
+                            {formatCurrency(expense.amount)}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

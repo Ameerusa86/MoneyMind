@@ -36,7 +36,14 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { AccountStorage } from "@/lib/storage";
 import { Account, AccountType } from "@/lib/types";
-import { Plus, Edit, Trash2, CreditCard, Landmark } from "lucide-react";
+import {
+  Plus,
+  Edit,
+  Trash2,
+  CreditCard,
+  Landmark,
+  RefreshCw,
+} from "lucide-react";
 
 export default function AccountsPage() {
   const [accounts, setAccounts] = useState<
@@ -50,6 +57,7 @@ export default function AccountsPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingAccount, setEditingAccount] = useState<Account | null>(null);
   const [loadingBalances, setLoadingBalances] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   // Filters & sorting
   const [search, setSearch] = useState("");
@@ -80,6 +88,12 @@ export default function AccountsPage() {
     const saved = await AccountStorage.getAllWithBalances();
     setAccounts(saved);
     setLoadingBalances(false);
+  };
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await loadAccountsWithBalances();
+    setRefreshing(false);
   };
 
   const resetForm = () => {
@@ -224,164 +238,176 @@ export default function AccountsPage() {
             </p>
           </div>
 
-          <Dialog
-            open={isDialogOpen}
-            onOpenChange={(open) => {
-              setIsDialogOpen(open);
-              if (!open) resetForm();
-            }}
-          >
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="mr-2 h-4 w-4" />
-                Add Account
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>
-                  {editingAccount ? "Edit Account" : "Add New Account"}
-                </DialogTitle>
-                <DialogDescription>
-                  {editingAccount
-                    ? "Update account details"
-                    : "Add a credit card, loan, or bank account"}
-                </DialogDescription>
-              </DialogHeader>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={handleRefresh}
+              disabled={refreshing}
+            >
+              <RefreshCw
+                className={`mr-2 h-4 w-4 ${refreshing ? "animate-spin" : ""}`}
+              />
+              Refresh
+            </Button>
+            <Dialog
+              open={isDialogOpen}
+              onOpenChange={(open) => {
+                setIsDialogOpen(open);
+                if (!open) resetForm();
+              }}
+            >
+              <DialogTrigger asChild>
+                <Button>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add Account
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>
+                    {editingAccount ? "Edit Account" : "Add New Account"}
+                  </DialogTitle>
+                  <DialogDescription>
+                    {editingAccount
+                      ? "Update account details"
+                      : "Add a credit card, loan, or bank account"}
+                  </DialogDescription>
+                </DialogHeader>
 
-              <div className="space-y-4 py-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">
-                      Account Name *
-                    </label>
-                    <Input
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      placeholder="e.g., Chase Sapphire, Car Loan"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">
-                      Account Type *
-                    </label>
-                    <Select
-                      value={type}
-                      onValueChange={(val) => setType(val as AccountType)}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="credit">Credit Card</SelectItem>
-                        <SelectItem value="loan">Loan</SelectItem>
-                        <SelectItem value="checking">Checking</SelectItem>
-                        <SelectItem value="savings">Savings</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">
-                      {type === "checking" || type === "savings"
-                        ? "Opening Balance ($) *"
-                        : "Opening Balance ($) *"}
-                    </label>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      value={balance}
-                      onChange={(e) => setBalance(e.target.value)}
-                      placeholder="0.00"
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      {type === "checking" || type === "savings"
-                        ? "Opening balance before any imported transactions (e.g., balance on the first transaction date)"
-                        : "Opening debt balance before any imported transactions"}
-                    </p>
-                  </div>
-
-                  {(type === "credit" || type === "loan") && (
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">APR (%)</label>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        value={apr}
-                        onChange={(e) => setApr(e.target.value)}
-                        placeholder="0.00"
-                      />
-                    </div>
-                  )}
-
-                  {type === "credit" && (
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">
-                        Credit Limit ($)
-                      </label>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        value={creditLimit}
-                        onChange={(e) => setCreditLimit(e.target.value)}
-                        placeholder="0.00"
-                      />
-                    </div>
-                  )}
-                </div>
-
-                {(type === "credit" || type === "loan") && (
+                <div className="space-y-4 py-4">
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <label className="text-sm font-medium">
-                        Minimum Payment ($)
+                        Account Name *
                       </label>
                       <Input
-                        type="number"
-                        step="0.01"
-                        value={minPayment}
-                        onChange={(e) => setMinPayment(e.target.value)}
-                        placeholder="0.00"
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        placeholder="e.g., Chase Sapphire, Car Loan"
                       />
                     </div>
 
                     <div className="space-y-2">
                       <label className="text-sm font-medium">
-                        Due Day (1-31)
+                        Account Type *
+                      </label>
+                      <Select
+                        value={type}
+                        onValueChange={(val) => setType(val as AccountType)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="credit">Credit Card</SelectItem>
+                          <SelectItem value="loan">Loan</SelectItem>
+                          <SelectItem value="checking">Checking</SelectItem>
+                          <SelectItem value="savings">Savings</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">
+                        {type === "checking" || type === "savings"
+                          ? "Opening Balance ($) *"
+                          : "Opening Balance ($) *"}
                       </label>
                       <Input
                         type="number"
-                        min="1"
-                        max="31"
-                        value={dueDay}
-                        onChange={(e) => setDueDay(e.target.value)}
-                        placeholder="15"
+                        step="0.01"
+                        value={balance}
+                        onChange={(e) => setBalance(e.target.value)}
+                        placeholder="0.00"
                       />
+                      <p className="text-xs text-muted-foreground">
+                        {type === "checking" || type === "savings"
+                          ? "Opening balance before any imported transactions (e.g., balance on the first transaction date)"
+                          : "Opening debt balance before any imported transactions"}
+                      </p>
                     </div>
+
+                    {(type === "credit" || type === "loan") && (
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium">APR (%)</label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          value={apr}
+                          onChange={(e) => setApr(e.target.value)}
+                          placeholder="0.00"
+                        />
+                      </div>
+                    )}
+
+                    {type === "credit" && (
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium">
+                          Credit Limit ($)
+                        </label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          value={creditLimit}
+                          onChange={(e) => setCreditLimit(e.target.value)}
+                          placeholder="0.00"
+                        />
+                      </div>
+                    )}
                   </div>
-                )}
 
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">
-                    Website (Optional)
-                  </label>
-                  <Input
-                    type="url"
-                    value={website}
-                    onChange={(e) => setWebsite(e.target.value)}
-                    placeholder="https://example.com"
-                  />
+                  {(type === "credit" || type === "loan") && (
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium">
+                          Minimum Payment ($)
+                        </label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          value={minPayment}
+                          onChange={(e) => setMinPayment(e.target.value)}
+                          placeholder="0.00"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium">
+                          Due Day (1-31)
+                        </label>
+                        <Input
+                          type="number"
+                          min="1"
+                          max="31"
+                          value={dueDay}
+                          onChange={(e) => setDueDay(e.target.value)}
+                          placeholder="15"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">
+                      Website (Optional)
+                    </label>
+                    <Input
+                      type="url"
+                      value={website}
+                      onChange={(e) => setWebsite(e.target.value)}
+                      placeholder="https://example.com"
+                    />
+                  </div>
+
+                  <Button onClick={handleSave} className="w-full">
+                    {editingAccount ? "Update Account" : "Add Account"}
+                  </Button>
                 </div>
-
-                <Button onClick={handleSave} className="w-full">
-                  {editingAccount ? "Update Account" : "Add Account"}
-                </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
+              </DialogContent>
+            </Dialog>
+          </div>
         </div>
 
         {/* Summary Cards */}
