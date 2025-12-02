@@ -203,8 +203,11 @@ export default function AccountsPage() {
       0,
       0
     );
+    const currentDay = now.getDate();
+
+    // If we're past the due day this month, show next month's due date
     let due = new Date(now.getFullYear(), now.getMonth(), dueDay);
-    if (due < today) {
+    if (currentDay >= dueDay) {
       due = new Date(now.getFullYear(), now.getMonth() + 1, dueDay);
     }
     const msPerDay = 24 * 60 * 60 * 1000;

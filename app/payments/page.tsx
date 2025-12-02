@@ -29,7 +29,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { formatCurrency, formatDate } from "@/lib/utils";
+import { formatCurrency, formatDate, getTodayLocalDate } from "@/lib/utils";
 import type { TransactionType } from "@/lib/types";
 import {
   Plus,
@@ -78,7 +78,7 @@ export default function PaymentsPage() {
 
   const [createForm, setCreateForm] = useState({
     amount: "",
-    date: new Date().toISOString().split("T")[0],
+    date: getTodayLocalDate(),
     description: "",
     toAccountId: "",
     fromAccountId: "",
@@ -88,7 +88,7 @@ export default function PaymentsPage() {
 
   const [editForm, setEditForm] = useState({
     amount: "",
-    date: new Date().toISOString().split("T")[0],
+    date: getTodayLocalDate(),
     description: "",
     toAccountId: "",
     fromAccountId: "",
@@ -276,7 +276,7 @@ export default function PaymentsPage() {
   const resetCreate = () => {
     setCreateForm({
       amount: "",
-      date: new Date().toISOString().split("T")[0],
+      date: getTodayLocalDate(),
       description: "",
       toAccountId: "",
       fromAccountId: "",
@@ -384,8 +384,7 @@ export default function PaymentsPage() {
     const refundFor = typeof meta.refundFor === "string" ? meta.refundFor : "";
     setEditForm({
       amount: String(payment.amount ?? ""),
-      date:
-        payment.date?.slice(0, 10) || new Date().toISOString().split("T")[0],
+      date: payment.date?.slice(0, 10) || getTodayLocalDate(),
       description: payment.description || "",
       toAccountId: payment.toAccountId || "",
       fromAccountId: payment.fromAccountId || "",

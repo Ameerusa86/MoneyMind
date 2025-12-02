@@ -45,7 +45,7 @@ import {
   ArrowDown,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { formatCurrency, formatDate } from "@/lib/utils";
+import { formatCurrency, formatDate, getTodayLocalDate } from "@/lib/utils";
 import type { ExpenseCategory, TransactionType } from "@/lib/types";
 
 type TransactionDto = {
@@ -144,7 +144,7 @@ export default function ExpensesPage() {
     description: "",
     amount: "",
     category: "" as ExpenseCategory | "",
-    date: new Date().toISOString().split("T")[0],
+    date: getTodayLocalDate(),
     accountId: "",
   });
 
@@ -155,7 +155,7 @@ export default function ExpensesPage() {
   );
   const [refundForm, setRefundForm] = useState({
     amount: "",
-    date: new Date().toISOString().split("T")[0],
+    date: getTodayLocalDate(),
     description: "",
     accountId: "",
   });
@@ -328,7 +328,7 @@ export default function ExpensesPage() {
       description: "",
       amount: "",
       category: "",
-      date: new Date().toISOString().split("T")[0],
+      date: getTodayLocalDate(),
       accountId: "",
     });
     setEditingId(null);
@@ -537,7 +537,7 @@ export default function ExpensesPage() {
     setRefundSourceTxn(txn);
     setRefundForm({
       amount: txn.amount.toString(),
-      date: new Date().toISOString().split("T")[0],
+      date: getTodayLocalDate(),
       description: `Refund: ${txn.description || ""}`.trim(),
       accountId: txn.fromAccountId || "",
     });
@@ -549,7 +549,7 @@ export default function ExpensesPage() {
     setRefundSourceTxn(null);
     setRefundForm({
       amount: "",
-      date: new Date().toISOString().split("T")[0],
+      date: getTodayLocalDate(),
       description: "",
       accountId: "",
     });

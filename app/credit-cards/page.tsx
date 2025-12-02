@@ -109,10 +109,14 @@ export default function CreditCardsPage() {
     const today = new Date();
     const currentMonth = today.getMonth();
     const currentYear = today.getFullYear();
+    const currentDay = today.getDate();
+
+    // If we're past the due day this month, show next month's due date
     let dueDate = new Date(currentYear, currentMonth, card.dueDay);
-    if (dueDate < today) {
+    if (currentDay >= card.dueDay) {
       dueDate = new Date(currentYear, currentMonth + 1, card.dueDay);
     }
+
     return Math.ceil(
       (dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
     );
