@@ -38,6 +38,10 @@ import {
   Calendar,
   Pencil,
   Trash2,
+  Search,
+  Filter,
+  ArrowUpDown,
+  Download,
 } from "lucide-react";
 
 interface TransactionDto {
@@ -92,6 +96,17 @@ export default function PaymentsPage() {
     refundExpenseId: "",
   });
 
+  // Filter and search state
+  const [searchQuery, setSearchQuery] = useState("");
+  const [dateFilter, setDateFilter] = useState<"all" | "today" | "week" | "month" | "custom">("all");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [accountFilter, setAccountFilter] = useState<"all" | string>("all");
+  const [typeFilter, setTypeFilter] = useState<"all" | "regular" | "refund">("all");
+  const [amountFilter, setAmountFilter] = useState<"all" | "small" | "medium" | "large">("all");
+  const [sortBy, setSortBy] = useState<"date" | "amount" | "description">("date");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
+
   const loadData = async () => {
     setLoading(true);
     setError(null);
@@ -143,6 +158,103 @@ export default function PaymentsPage() {
   useEffect(() => {
     loadData();
   }, []);
+
+  // Filter, search and sort logic
+  const getFilteredPayments = () => {
+    let filtered = [...payments];
+
+    // Search filter
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter((payment) => {
+        const description = payment.description?.toLowerCase() || "";
+        const amount = payment.amount.toString();
+        const fromAccount = accounts.find((a) => a.id === payment.fromAccountId)?.name.toLowerCase() || "";
+        const toAccount = accounts.find((a) => a.id === payment.toAccountId)?.name.toLowerCase() || "";
+        return (
+          description.includes(query) ||
+          amount.includes(query) ||
+          fromAccount.includes(query) ||
+          toAccount.includes(query)
+        );
+      });
+    }
+
+    // Date filter
+    if (dateFilter !== "all") {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      if (dateFilter === "today") {
+        filtered = filtered.filter((p) => {
+          const payDate = new Date(p.date);
+          payDate.setHours(0, 0, 0, 0);
+          return payDate.getTime() === today.getTime();
+        });
+      } else if (dateFilter === "week") {
+        const weekAgo = new Date(today);
+        weekAgo.setDate(weekAgo.getDate() - 7);
+        filtered = filtered.filter((p) => new Date(p.date) >= weekAgo);
+      } else if (dateFilter === "month") {
+        const monthAgo = new Date(today);
+        monthAgo.setMonth(monthAgo.getMonth() - 1);
+        filtered = filtered.filter((p) => new Date(p.date) >= monthAgo);
+      } else if (dateFilter === "custom" && startDate && endDate) {
+        const start = new Date(startDate);
+        const end = new Date(endDate);
+        filtered = filtered.filter((p) => {
+          const date = new Date(p.date);
+          return date >= start && date <= end;
+        });
+      }
+    }
+
+    // Account filter
+    if (accountFilter !== "all") {
+      filtered = filtered.filter(
+        (p) => p.fromAccountId === accountFilter || p.toAccountId === accountFilter
+      );
+    }
+
+    // Type filter (regular vs refund)
+    if (typeFilter !== "all") {
+      filtered = filtered.filter((p) => {
+        const isRefund = !!(p.metadata as Record<string, unknown>)?.refundFor;
+        return typeFilter === "refund" ? isRefund : !isRefund;
+      });
+    }
+
+    // Amount filter
+    if (amountFilter !== "all") {
+      filtered = filtered.filter((p) => {
+        const amount = p.amount;
+        if (amountFilter === "small") return amount < 50;
+        if (amountFilter === "medium") return amount >= 50 && amount < 500;
+        if (amountFilter === "large") return amount >= 500;
+        return true;
+      });
+    }
+
+    // Sort
+    filtered.sort((a, b) => {
+      let comparison = 0;
+      if (sortBy === "date") {
+        comparison = new Date(a.date).getTime() - new Date(b.date).getTime();
+      } else if (sortBy === "amount") {
+        comparison = a.amount - b.amount;
+      } else if (sortBy === "description") {
+        comparison = (a.description || "").localeCompare(b.description || "");
+      }
+      return sortDirection === "asc" ? comparison : -comparison;
+    });
+
+    return filtered;
+  };
+
+  const filteredPayments = getFilteredPayments();
+
+  const totalAmount = filteredPayments.reduce((sum, p) => sum + p.amount, 0);
+  const refundCount = filteredPayments.filter((p) => !!(p.metadata as Record<string, unknown>)?.refundFor).length;
 
   const resetCreate = () => {
     setCreateForm({
@@ -592,6 +704,187 @@ export default function PaymentsPage() {
 
       {error && <p className="text-sm text-red-500">{error}</p>}
 
+      {/* Filter and Search Section */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Filter className="h-5 w-5" />
+            Filters & Search
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Search Bar */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Search</label>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search by description, amount, or account..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+          </div>
+
+          {/* Filters Grid */}
+          <div className="grid gap-4 md:grid-cols-4">
+            {/* Date Filter */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Date Range</label>
+              <Select value={dateFilter} onValueChange={(v) => setDateFilter(v as typeof dateFilter)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Time</SelectItem>
+                  <SelectItem value="today">Today</SelectItem>
+                  <SelectItem value="week">Last 7 Days</SelectItem>
+                  <SelectItem value="month">Last 30 Days</SelectItem>
+                  <SelectItem value="custom">Custom Range</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Account Filter */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Account</label>
+              <Select value={accountFilter} onValueChange={setAccountFilter}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Accounts</SelectItem>
+                  {accounts.map((acc) => (
+                    <SelectItem key={acc.id} value={acc.id}>
+                      {acc.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Type Filter */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Type</label>
+              <Select value={typeFilter} onValueChange={(v) => setTypeFilter(v as typeof typeFilter)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Types</SelectItem>
+                  <SelectItem value="regular">Regular Payments</SelectItem>
+                  <SelectItem value="refund">Refunds</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Amount Filter */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Amount Range</label>
+              <Select value={amountFilter} onValueChange={(v) => setAmountFilter(v as typeof amountFilter)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Amounts</SelectItem>
+                  <SelectItem value="small">{"< $50"}</SelectItem>
+                  <SelectItem value="medium">$50 - $500</SelectItem>
+                  <SelectItem value="large">{"> $500"}</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {/* Custom Date Range */}
+          {dateFilter === "custom" && (
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Start Date</label>
+                <Input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">End Date</label>
+                <Input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Sort Controls */}
+          <div className="grid gap-4 md:grid-cols-3">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Sort By</label>
+              <Select value={sortBy} onValueChange={(v) => setSortBy(v as typeof sortBy)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="date">Date</SelectItem>
+                  <SelectItem value="amount">Amount</SelectItem>
+                  <SelectItem value="description">Description</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Direction</label>
+              <Select value={sortDirection} onValueChange={(v) => setSortDirection(v as "asc" | "desc")}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="desc">Descending</SelectItem>
+                  <SelectItem value="asc">Ascending</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-end">
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={() => {
+                  setSearchQuery("");
+                  setDateFilter("all");
+                  setAccountFilter("all");
+                  setTypeFilter("all");
+                  setAmountFilter("all");
+                  setSortBy("date");
+                  setSortDirection("desc");
+                  setStartDate("");
+                  setEndDate("");
+                }}
+              >
+                Reset Filters
+              </Button>
+            </div>
+          </div>
+
+          {/* Summary Stats */}
+          <div className="flex gap-4 p-4 bg-muted rounded-lg">
+            <div className="flex-1">
+              <p className="text-sm text-muted-foreground">Showing</p>
+              <p className="text-2xl font-bold">{filteredPayments.length}</p>
+              <p className="text-xs text-muted-foreground">of {payments.length} payments</p>
+            </div>
+            <div className="flex-1">
+              <p className="text-sm text-muted-foreground">Total Amount</p>
+              <p className="text-2xl font-bold text-green-600">{formatCurrency(totalAmount)}</p>
+            </div>
+            <div className="flex-1">
+              <p className="text-sm text-muted-foreground">Refunds</p>
+              <p className="text-2xl font-bold text-orange-600">{refundCount}</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       <Card>
         <CardHeader className="flex justify-between items-center">
           <CardTitle>Payment Transactions</CardTitle>
@@ -604,6 +897,10 @@ export default function PaymentsPage() {
           ) : payments.length === 0 ? (
             <div className="py-8 text-center text-muted-foreground">
               No payments recorded yet.
+            </div>
+          ) : filteredPayments.length === 0 ? (
+            <div className="py-8 text-center text-muted-foreground">
+              No payments match your filters. Try adjusting your search criteria.
             </div>
           ) : (
             <ResponsiveTable>
@@ -620,7 +917,7 @@ export default function PaymentsPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {payments.map((p) => {
+                  {filteredPayments.map((p) => {
                     const debtAccount = p.toAccountId
                       ? accounts.find((a) => a.id === p.toAccountId)
                       : null;
