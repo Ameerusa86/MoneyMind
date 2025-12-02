@@ -98,13 +98,21 @@ export default function PaymentsPage() {
 
   // Filter and search state
   const [searchQuery, setSearchQuery] = useState("");
-  const [dateFilter, setDateFilter] = useState<"all" | "today" | "week" | "month" | "custom">("all");
+  const [dateFilter, setDateFilter] = useState<
+    "all" | "today" | "week" | "month" | "custom"
+  >("all");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [accountFilter, setAccountFilter] = useState<"all" | string>("all");
-  const [typeFilter, setTypeFilter] = useState<"all" | "regular" | "refund">("all");
-  const [amountFilter, setAmountFilter] = useState<"all" | "small" | "medium" | "large">("all");
-  const [sortBy, setSortBy] = useState<"date" | "amount" | "description">("date");
+  const [typeFilter, setTypeFilter] = useState<"all" | "regular" | "refund">(
+    "all"
+  );
+  const [amountFilter, setAmountFilter] = useState<
+    "all" | "small" | "medium" | "large"
+  >("all");
+  const [sortBy, setSortBy] = useState<"date" | "amount" | "description">(
+    "date"
+  );
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
 
   const loadData = async () => {
@@ -169,8 +177,14 @@ export default function PaymentsPage() {
       filtered = filtered.filter((payment) => {
         const description = payment.description?.toLowerCase() || "";
         const amount = payment.amount.toString();
-        const fromAccount = accounts.find((a) => a.id === payment.fromAccountId)?.name.toLowerCase() || "";
-        const toAccount = accounts.find((a) => a.id === payment.toAccountId)?.name.toLowerCase() || "";
+        const fromAccount =
+          accounts
+            .find((a) => a.id === payment.fromAccountId)
+            ?.name.toLowerCase() || "";
+        const toAccount =
+          accounts
+            .find((a) => a.id === payment.toAccountId)
+            ?.name.toLowerCase() || "";
         return (
           description.includes(query) ||
           amount.includes(query) ||
@@ -184,7 +198,7 @@ export default function PaymentsPage() {
     if (dateFilter !== "all") {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
-      
+
       if (dateFilter === "today") {
         filtered = filtered.filter((p) => {
           const payDate = new Date(p.date);
@@ -212,7 +226,8 @@ export default function PaymentsPage() {
     // Account filter
     if (accountFilter !== "all") {
       filtered = filtered.filter(
-        (p) => p.fromAccountId === accountFilter || p.toAccountId === accountFilter
+        (p) =>
+          p.fromAccountId === accountFilter || p.toAccountId === accountFilter
       );
     }
 
@@ -254,7 +269,9 @@ export default function PaymentsPage() {
   const filteredPayments = getFilteredPayments();
 
   const totalAmount = filteredPayments.reduce((sum, p) => sum + p.amount, 0);
-  const refundCount = filteredPayments.filter((p) => !!(p.metadata as Record<string, unknown>)?.refundFor).length;
+  const refundCount = filteredPayments.filter(
+    (p) => !!(p.metadata as Record<string, unknown>)?.refundFor
+  ).length;
 
   const resetCreate = () => {
     setCreateForm({
@@ -732,7 +749,10 @@ export default function PaymentsPage() {
             {/* Date Filter */}
             <div className="space-y-2">
               <label className="text-sm font-medium">Date Range</label>
-              <Select value={dateFilter} onValueChange={(v) => setDateFilter(v as typeof dateFilter)}>
+              <Select
+                value={dateFilter}
+                onValueChange={(v) => setDateFilter(v as typeof dateFilter)}
+              >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -767,7 +787,10 @@ export default function PaymentsPage() {
             {/* Type Filter */}
             <div className="space-y-2">
               <label className="text-sm font-medium">Type</label>
-              <Select value={typeFilter} onValueChange={(v) => setTypeFilter(v as typeof typeFilter)}>
+              <Select
+                value={typeFilter}
+                onValueChange={(v) => setTypeFilter(v as typeof typeFilter)}
+              >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -782,7 +805,10 @@ export default function PaymentsPage() {
             {/* Amount Filter */}
             <div className="space-y-2">
               <label className="text-sm font-medium">Amount Range</label>
-              <Select value={amountFilter} onValueChange={(v) => setAmountFilter(v as typeof amountFilter)}>
+              <Select
+                value={amountFilter}
+                onValueChange={(v) => setAmountFilter(v as typeof amountFilter)}
+              >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -822,7 +848,10 @@ export default function PaymentsPage() {
           <div className="grid gap-4 md:grid-cols-3">
             <div className="space-y-2">
               <label className="text-sm font-medium">Sort By</label>
-              <Select value={sortBy} onValueChange={(v) => setSortBy(v as typeof sortBy)}>
+              <Select
+                value={sortBy}
+                onValueChange={(v) => setSortBy(v as typeof sortBy)}
+              >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -835,7 +864,10 @@ export default function PaymentsPage() {
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">Direction</label>
-              <Select value={sortDirection} onValueChange={(v) => setSortDirection(v as "asc" | "desc")}>
+              <Select
+                value={sortDirection}
+                onValueChange={(v) => setSortDirection(v as "asc" | "desc")}
+              >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -871,15 +903,21 @@ export default function PaymentsPage() {
             <div className="flex-1">
               <p className="text-sm text-muted-foreground">Showing</p>
               <p className="text-2xl font-bold">{filteredPayments.length}</p>
-              <p className="text-xs text-muted-foreground">of {payments.length} payments</p>
+              <p className="text-xs text-muted-foreground">
+                of {payments.length} payments
+              </p>
             </div>
             <div className="flex-1">
               <p className="text-sm text-muted-foreground">Total Amount</p>
-              <p className="text-2xl font-bold text-green-600">{formatCurrency(totalAmount)}</p>
+              <p className="text-2xl font-bold text-green-600">
+                {formatCurrency(totalAmount)}
+              </p>
             </div>
             <div className="flex-1">
               <p className="text-sm text-muted-foreground">Refunds</p>
-              <p className="text-2xl font-bold text-orange-600">{refundCount}</p>
+              <p className="text-2xl font-bold text-orange-600">
+                {refundCount}
+              </p>
             </div>
           </div>
         </CardContent>
@@ -900,7 +938,8 @@ export default function PaymentsPage() {
             </div>
           ) : filteredPayments.length === 0 ? (
             <div className="py-8 text-center text-muted-foreground">
-              No payments match your filters. Try adjusting your search criteria.
+              No payments match your filters. Try adjusting your search
+              criteria.
             </div>
           ) : (
             <ResponsiveTable>
